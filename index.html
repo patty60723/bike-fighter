@@ -310,9 +310,13 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 // ---------- config ----------
 // YouBike 2.0 live availability from each city's open data (about 1-minute refresh).
 // New Taipei serves the same fields in pages of up to 1,000 stations.
+// New Taipei's server doesn't allow cross-site reads, so it goes through the relay in proxy/.
+// Set PROXY_URL to the deployed relay (no trailing slash); empty = try the city server directly.
+const PROXY_URL = '';
+const NTPC_URL = page => `https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json?page=${page}&size=1000`;
 const SOURCES = [
   {city:'台北市', prefix:'tp', url:() => 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json'},
-  {city:'新北市', prefix:'nt', url:page => `https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json?page=${page}&size=1000`, paged:true},
+  {city:'新北市', prefix:'nt', url:page => PROXY_URL ? `${PROXY_URL}/ntpc?page=${page}` : NTPC_URL(page), paged:true},
 ];
 const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const REFRESH_MS = 60000;
@@ -560,7 +564,8 @@ async function loadSource(src){
   if (!list.length) throw new Error('empty');
   return list;
 }
-const errText = e => e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.message) ? `伺服器回應 ${e.message}` : e.message === 'empty' ? '資料是空的' : `${e.name}: ${e.message}`;
+const errText = e => e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.message) ? `伺服器回應 ${e.message}` : e.message === 'empty' ? '資料是空的'
+  : e.name === 'TypeError' ? '瀏覽器讀不到，多半是伺服器不允許跨網站讀取' : `${e.name}: ${e.message}`;
 // load every city; succeed if at least one answers, and remember which failed
 let liveCities = [];
 async function loadLive(){
