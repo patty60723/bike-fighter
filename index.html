@@ -362,7 +362,7 @@ let st = fresh();
 try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) st = Object.assign(fresh(), s); } catch(e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e) {} };
 
-let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false;
+let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false, liveErr = '';
 let stations = DEMO.map(s => ({...s, base:demoBase(s)}));
 if (!st.you) st.you = {...DEMO_YOU};
 const byId = id => stations.find(s => s.id === id);
@@ -507,8 +507,10 @@ async function loadLive(){
 }
 async function refresh(first){
   let list;
-  try { list = await loadLive(); } catch(e) {
-    if (mode === 'live') $('mapBadge').textContent = `即時資料更新失敗，顯示 ${dataTime ? hhmm(dataTime) : '上次'} 的資料`;
+  try { list = await loadLive(); liveErr = ''; } catch(e) {
+    liveErr = e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.message) ? `伺服器回應 ${e.message}` : e.message === 'empty' ? '資料是空的' : `${e.name}: ${e.message}`;
+    if (mode === 'live') $('mapBadge').textContent = `即時資料更新失敗（${liveErr}），顯示 ${dataTime ? hhmm(dataTime) : '上次'} 的資料`;
+    else renderBadge();
     return false;
   }
   const wasDemo = mode === 'demo';
@@ -519,7 +521,6 @@ async function refresh(first){
     // drop demo-only state that points at demo stations
     for (const key of Object.keys(st.raids)) if (key.startsWith('d')) delete st.raids[key];
     if (!byId(st.station)) st.station = nearest()[0].id;
-    $('useGps').hidden = !('geolocation' in navigator);
   }
   // live boss events end as soon as the station has bikes/docks again
   for (const r of Object.values(st.raids)) {
@@ -530,14 +531,29 @@ async function refresh(first){
   save(); buildOptions(); renderAll();
   return true;
 }
+// GPS works in demo mode too; it only needs a secure page (https or localhost)
+let gpsWatch = null;
+const GPS_ERR = {1:'定位權限被拒絕。請到瀏覽器或手機設定，允許這個網站使用位置，再按「用 GPS 定位」', 2:'目前取不到位置，請到室外或開啟手機定位服務後再試', 3:'定位逾時，請再按一次「用 GPS 定位」'};
 function startGps(){
-  if (!('geolocation' in navigator)) return;
-  navigator.geolocation.watchPosition(p => {
+  if (!('geolocation' in navigator)) { $('locNote').textContent = '這個瀏覽器不支援定位，請拖曳藍點'; return; }
+  if (!window.isSecureContext) { $('locNote').textContent = '定位只能在 https 網址使用，請拖曳藍點'; return; }
+  if (gpsWatch !== null) return;
+  $('locNote').textContent = '正在取得 GPS 位置…';
+  let first = true;
+  gpsWatch = navigator.geolocation.watchPosition(p => {
     gpsOn = true; st.you = {lat:p.coords.latitude, lng:p.coords.longitude};
-    $('locNote').textContent = `GPS 定位中（誤差約 ${Math.round(p.coords.accuracy)} 公尺）`;
+    if (first) { first = false; view.lat = st.you.lat; view.lng = st.you.lng; }
+    const far = mode === 'demo' && distTo(nearest()[0]) > 2000;
+    $('locNote').textContent = `GPS 定位中（誤差約 ${Math.round(p.coords.accuracy)} 公尺）` + (far ? '。示範站點都在信義區，離你很遠' : '');
     $('useGps').hidden = true;
     save(); buildOptions(); renderMap(); renderStage();
-  }, () => { gpsOn = false; $('locNote').textContent = '沒有取得定位權限，改用拖曳藍點'; }, {enableHighAccuracy:true, maximumAge:10000});
+  }, err => {
+    gpsOn = false;
+    if (gpsWatch !== null) navigator.geolocation.clearWatch(gpsWatch);
+    gpsWatch = null;
+    $('locNote').textContent = (GPS_ERR[err.code] || `定位失敗（${err.message}）`) + '；也可以先拖曳藍點';
+    $('useGps').hidden = false;
+  }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
 }
 $('useGps').addEventListener('click', startGps);
 function probeTiles(){
@@ -555,7 +571,7 @@ function renderBadge(){
     $('dataNote').textContent = '車位數來自台北市政府開放資料，每分鐘更新。其他人的怒氣和討伐的路人仍是模擬的，多人統計要接後端資料庫才會是真的。';
   } else {
     chip.textContent = '示範資料'; chip.className = 'chip';
-    b.textContent = tilesOn ? '示範站點・地圖 © OpenStreetMap 貢獻者' : '示範模式：這個預覽擋住了外部連線，所以用範例站點和空白底圖';
+    b.textContent = (liveErr ? `讀不到即時資料（${liveErr}），改用示範站點` : '示範站點') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '・地圖圖磚也載不到，改用空白底圖');
     $('dataNote').textContent = '目前是示範模式：站名是真實地點，但位置是近似值，車位數和其他人的怒氣都是編的。把這個 HTML 檔放到一般網站（例如 GitHub Pages）上打開，會自動改用台北市即時 API、OpenStreetMap 地圖和手機 GPS。';
   }
 }
@@ -860,7 +876,9 @@ $('resetBtn').addEventListener('click', resetAsk);
 
 // ---------- boot ----------
 buildOptions(); renderAll(); probeTiles();
-refresh(true).then(ok => { if (ok) { startGps(); setInterval(refresh, REFRESH_MS); } });
+$('useGps').hidden = !('geolocation' in navigator);
+startGps();
+refresh(true); setInterval(refresh, REFRESH_MS); // keep retrying so a later success switches to live data
 })();
 </script>
 </body></html>
