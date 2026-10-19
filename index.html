@@ -1,0 +1,866 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
+<title>單車怒氣站</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: the map leads (stations colored by bikes or docks, you as a blue dot, the 100 m fence around the chosen station); the combo button sits under it; boss event, stats and logs in the right column. */
+:root{
+  --bg:#E8EBEE; --surface:#F7F8F9; --ink:#14171C; --muted:#5A6270; --line:#D2D7DD;
+  --heat1:#F2A900; --heat2:#E8541E; --heat3:#CF1E3B; --heat4:#86106A;
+  --on-heat1:#2B1B00; --on-heat:#FFFFFF; --lock:#9AA2AD;
+  --ok:#1E8449; --bad:#CF1E3B; --track:#DADFE4; --boss:#2C2F6B;
+  --you:#2F6BFF; --map-bg:#DDE3E8; --map-grid:rgba(20,23,28,.06); --tile-filter:none;
+  --f-display:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-num:"Chakra Petch","DIN Alternate","Roboto Mono",ui-monospace,monospace;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1216; --surface:#181C22; --ink:#ECEEF1; --muted:#9AA3AF; --line:#2A3039;
+  --heat1:#FFB81C; --heat2:#FF6A33; --heat3:#F0334F; --heat4:#B5308F; --lock:#4A525D;
+  --ok:#3DBE76; --bad:#FF4D66; --track:#262C34; --boss:#8C90FF;
+  --you:#5B8CFF; --map-bg:#1B2027; --map-grid:rgba(236,238,241,.06); --tile-filter:invert(.92) hue-rotate(180deg) saturate(.5) brightness(.95); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0F1216; --surface:#181C22; --ink:#ECEEF1; --muted:#9AA3AF; --line:#2A3039;
+  --heat1:#FFB81C; --heat2:#FF6A33; --heat3:#F0334F; --heat4:#B5308F; --lock:#4A525D;
+  --ok:#3DBE76; --bad:#FF4D66; --track:#262C34; --boss:#8C90FF;
+  --you:#5B8CFF; --map-bg:#1B2027; --map-grid:rgba(236,238,241,.06); --tile-filter:invert(.92) hue-rotate(180deg) saturate(.5) brightness(.95); color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 32px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--heat2);outline-offset:2px}
+.app{max-width:1180px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font-family:var(--f-display);font-weight:900;font-size:22px;margin:0;letter-spacing:.02em}
+.chip{font-size:11px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.chip.live{color:var(--ok);border-color:var(--ok)}
+.hdr-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--muted)}
+.ghost:hover{color:var(--ink);border-color:var(--muted)}
+.ghost:disabled{opacity:.45;cursor:not-allowed}
+.cols{display:grid;gap:16px}
+@media (min-width:900px){.cols{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}}
+.col{display:grid;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.label{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:0 0 6px;font-weight:500}
+h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
+.note{font-size:12px;color:var(--muted);margin:0}
+
+/* map */
+.map{position:relative;height:clamp(300px,48vh,500px);overflow:hidden;border-radius:12px;background-color:var(--map-bg);
+  background-image:linear-gradient(var(--map-grid) 1px,transparent 1px),linear-gradient(90deg,var(--map-grid) 1px,transparent 1px);background-size:64px 64px;
+  touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.map.dragging{cursor:grabbing}
+.tiles{position:absolute;inset:0;filter:var(--tile-filter)}
+.tiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
+.map svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.fence{fill:color-mix(in srgb,var(--you) 12%,transparent);stroke:var(--you);stroke-width:2;stroke-dasharray:6 5}
+.mk{position:absolute;transform:translate(-50%,-50%);min-width:30px;height:30px;padding:0 7px;border-radius:15px;border:2px solid var(--surface);
+  font-family:var(--f-num);font-weight:700;font-size:14px;line-height:26px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;color:var(--on-heat)}
+.mk.s0{background:var(--bad)} .mk.s1{background:var(--heat1);color:var(--on-heat1)} .mk.s2{background:var(--ok)}
+.mk.dot{min-width:12px;width:12px;height:12px;padding:0;font-size:0;border-width:1.5px}
+.mk.sel{z-index:4;outline:3px solid var(--ink);outline-offset:1px;transform:translate(-50%,-50%) scale(1.15)}
+.mk.raid::after{content:"";position:absolute;inset:-7px;border-radius:999px;border:2px solid var(--boss);animation:pulse 1.6s ease-out infinite}
+@keyframes pulse{0%{opacity:.9;transform:scale(.9)}100%{opacity:0;transform:scale(1.5)}}
+.you{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--you);border:3px solid var(--surface);
+  box-shadow:0 0 0 7px color-mix(in srgb,var(--you) 25%,transparent);cursor:grab;touch-action:none;z-index:5}
+.map-ctrl{position:absolute;right:10px;top:10px;display:grid;gap:6px;z-index:6}
+.map-ctrl button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:18px;font-weight:700;display:grid;place-items:center}
+.map-badge{position:absolute;left:10px;bottom:10px;pointer-events:none;max-width:calc(100% - 20px);z-index:6;font-size:12px;line-height:1.45;padding:6px 10px;border-radius:8px;
+  background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:5px}
+
+/* station sign */
+.sign{display:grid;gap:12px}
+.sign select{width:100%;font-family:var(--f-display);font-weight:700;font-size:17px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.avail{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.avail div{background:var(--bg);border-radius:10px;padding:8px 12px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.avail span{font-size:13px;color:var(--muted)}
+.avail b{font-family:var(--f-num);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.zero{color:var(--bad)} .okv{color:var(--ok)}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:7px;padding:7px 12px;cursor:pointer;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:disabled{cursor:not-allowed;opacity:.5}
+.typeseg{display:grid;grid-template-columns:1fr 1fr;width:100%}
+.loc{background:var(--bg);border-radius:10px;padding:10px 12px;display:grid;gap:8px}
+.loc-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.loc-row b{font-family:var(--f-num);font-size:18px;font-variant-numeric:tabular-nums}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px;background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.pill.out{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
+.pill.mid{background:color-mix(in srgb,var(--heat1) 22%,transparent);color:var(--ink)}
+
+/* stage */
+.stage{display:grid;justify-items:center;gap:12px;padding-block:14px 4px;position:relative}
+.readout{text-align:center;display:grid;gap:2px;min-height:118px;align-content:center}
+.big{font-family:var(--f-num);font-weight:700;font-size:clamp(52px,15vw,80px);line-height:1;font-variant-numeric:tabular-nums}
+.sub{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tier{font-family:var(--f-display);font-weight:900;font-size:15px;letter-spacing:.1em}
+.btnwrap{position:relative;width:min(62vw,220px);aspect-ratio:1;max-width:100%}
+.btnwrap canvas{position:absolute;inset:-40%;width:180%;height:180%;pointer-events:none}
+.anger{--face:var(--heat1);--face-ink:var(--on-heat1);--glow:0;
+  position:absolute;inset:0;border-radius:50%;border:0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--face) 70%,#fff) 0,var(--face) 55%,color-mix(in srgb,var(--face) 75%,#000) 100%);
+  color:var(--face-ink);display:grid;place-content:center;gap:2px;
+  box-shadow:0 10px 0 color-mix(in srgb,var(--face) 60%,#000),0 0 calc(var(--glow)*1px) color-mix(in srgb,var(--face) 80%,transparent);
+  transition:transform .06s ease,box-shadow .06s ease,background .3s ease}
+.anger.down{transform:translateY(7px) scale(.985);box-shadow:0 3px 0 color-mix(in srgb,var(--face) 60%,#000),0 0 calc(var(--glow)*1.4px) color-mix(in srgb,var(--face) 85%,transparent)}
+.anger .face{font-size:clamp(50px,14vw,66px);line-height:1}
+.anger .cta{font-family:var(--f-display);font-weight:900;font-size:17px;letter-spacing:.14em}
+.anger[data-tier="1"]{--face:var(--heat2);--face-ink:var(--on-heat)}
+.anger[data-tier="2"]{--face:var(--heat3);--face-ink:var(--on-heat)}
+.anger[data-tier="3"]{--face:var(--heat4);--face-ink:var(--on-heat)}
+.anger[data-locked="true"]{--face:var(--lock);--face-ink:var(--on-heat);--glow:0}
+.combo{width:100%;max-width:360px;display:grid;gap:6px}
+.bar{height:10px;background:var(--track);border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:inherit}
+.bar.timer i{background:var(--heat2)}
+.bar.lvl i{background:linear-gradient(90deg,var(--heat1),var(--heat2),var(--heat3));transition:width .12s ease}
+.combo p{margin:0;font-size:13px;text-align:center;font-variant-numeric:tabular-nums}
+.msg{min-height:1.6em;font-size:14px;font-weight:700;text-align:center;margin:0}
+.msg.warn{color:var(--bad)} .msg.good{color:var(--ok)}
+.burst{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;white-space:nowrap;
+  font-family:var(--f-display);font-weight:900;font-size:26px;color:var(--heat3);text-shadow:0 2px 0 var(--surface),0 0 18px var(--surface);z-index:2}
+.burst.show{animation:burst 1.1s ease-out forwards}
+@keyframes burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1;transform:translate(-50%,-80%) scale(1)}100%{opacity:0;transform:translate(-50%,-110%) scale(1)}}
+.shake{animation:shake .35s linear}
+@keyframes shake{0%,100%{transform:none}20%{transform:translate(-6px,2px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-4px,3px)}80%{transform:translate(3px,-2px)}}
+
+/* lists */
+.hist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:2px}
+.hist li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.hist li:last-child{border-bottom:0}
+.hist time{font-size:12px;color:var(--muted);font-family:var(--f-num)}
+.hist .v{font-family:var(--f-num);font-weight:700}
+.hist .v small{font-family:var(--f-body);font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+.tag{font-size:11px;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.tag.in{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.tag.no{background:var(--bg);color:var(--muted)}
+.empty{font-size:13px;color:var(--muted);margin:0}
+
+/* boss */
+.boss{border-color:color-mix(in srgb,var(--boss) 45%,var(--line))}
+.boss-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.clock{font-family:var(--f-num);font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;color:var(--boss)}
+.hp{margin-top:12px;display:grid;gap:6px}
+.hp .bar{height:16px}
+.hp .bar i{background:var(--boss);transition:width .3s ease}
+.hp-row{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.hp-row b{font-family:var(--f-num);font-size:16px}
+.you-box{margin-top:12px;background:var(--bg);border-radius:10px;padding:10px 12px;font-size:14px}
+.you-box b{color:var(--boss)}
+.joiners{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.joiners span{font-size:12px;background:var(--bg);border-radius:999px;padding:2px 9px;font-variant-numeric:tabular-nums}
+.joiners span.me{background:color-mix(in srgb,var(--boss) 22%,transparent);font-weight:700}
+.boss-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.result{margin-top:12px;border-radius:10px;padding:12px;background:color-mix(in srgb,var(--boss) 12%,var(--bg))}
+.result b{font-family:var(--f-display);font-weight:900;font-size:16px;display:block}
+
+/* stats */
+.unitrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+@media (max-width:420px){.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}}
+.stat{background:var(--bg);border-radius:10px;padding:10px 12px;min-width:0}
+.stat span{display:block;font-size:12px;color:var(--muted)}
+.stat b{display:block;font-family:var(--f-num);font-size:clamp(20px,5.5vw,26px);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
+.stat small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.explain{font-size:13px;color:var(--muted);margin:12px 0 0;max-width:62ch}
+.rules{margin:8px 0 0;padding-left:1.2em;display:grid;gap:4px;font-size:14px;max-width:62ch}
+@media (prefers-reduced-motion: reduce){.shake{animation:none}.burst.show{animation-duration:.01s}.anger,.bar i{transition:none}.mk.raid::after{animation:none}}
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.4</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="hdr-actions">
+      <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
+      <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
+    </div>
+  </header>
+
+  <div class="cols">
+    <div class="col">
+      <section class="panel" aria-label="附近站點地圖">
+        <div class="unitrow" style="margin-bottom:10px">
+          <h2 class="ttl">附近站點</h2>
+          <div class="seg" role="group" aria-label="地圖顯示">
+            <button id="tRent" data-type="rent">看借車</button>
+            <button id="tRet" data-type="ret">看還車</button>
+          </div>
+        </div>
+        <div class="map" id="map">
+          <div class="tiles" id="tiles"></div>
+          <svg id="overlay" aria-hidden="true"><circle class="fence" id="fence" cx="-99" cy="-99" r="0"></circle></svg>
+          <div id="markers"></div>
+          <div class="you" id="youDot" role="img" aria-label="你的位置，可拖曳"></div>
+          <div class="map-ctrl">
+            <button id="zIn" aria-label="放大">＋</button>
+            <button id="zOut" aria-label="縮小">－</button>
+            <button id="toMe" aria-label="回到我的位置">◎</button>
+          </div>
+          <div class="map-badge" id="mapBadge">載入中…</div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--bad)"></i>0</span>
+          <span><i style="background:var(--heat1)"></i>1–3</span>
+          <span><i style="background:var(--ok)"></i>4 以上</span>
+          <span><i style="background:var(--you)"></i>你（可拖曳）</span>
+          <span>虛線圈：選中站點的 100 公尺範圍</span>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="發洩怒氣">
+        <div class="sign">
+          <div>
+            <p class="label">選中的站點（依距離排序）</p>
+            <select id="stationSel" aria-label="選擇站點"></select>
+          </div>
+          <div class="avail">
+            <div><span>可借車</span><b id="rentN">0</b></div>
+            <div><span>可還位</span><b id="retN">0</b></div>
+          </div>
+          <div class="loc">
+            <div class="loc-row"><span>你離這站 <b id="distTxt">–</b></span><span class="pill" id="locPill">在範圍內</span></div>
+            <div class="loc-row">
+              <span class="note" id="locNote">拖曳地圖上的藍點，模擬走動</span>
+              <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="walkHere">走到這站旁</button><button class="ghost" id="useGps" hidden>用 GPS 定位</button></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stage" id="stage">
+          <div class="readout" aria-live="polite">
+            <div class="tier" id="tierName">準備開始一批</div>
+            <div class="big" id="big">0</div>
+            <div class="sub" id="sub">按下去開始連擊</div>
+          </div>
+          <div class="btnwrap">
+            <canvas id="fx" aria-hidden="true"></canvas>
+            <button class="anger" id="angerBtn" data-tier="0" aria-label="按下發洩怒氣">
+              <span class="face" id="face" aria-hidden="true">😠</span>
+              <span class="cta" id="cta">按下去</span>
+            </button>
+          </div>
+          <div class="burst" id="burst" aria-hidden="true"></div>
+          <div class="combo">
+            <div class="bar timer" aria-hidden="true"><i id="timerBar"></i></div>
+            <p id="timerTxt">停手 3 秒，這批就會送出</p>
+            <div class="bar lvl" aria-hidden="true"><i id="lvlBar"></i></div>
+            <p id="lvlTxt">按 2 下就是 Lv.1</p>
+          </div>
+          <p class="msg" id="msg" role="status"></p>
+        </div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel boss" aria-label="限時討伐" id="bossPanel"></section>
+
+      <section class="panel" aria-label="本站統計">
+        <div class="unitrow">
+          <h2 class="ttl" id="statTitle">本站怒氣</h2>
+          <div class="seg" role="group" aria-label="顯示方式">
+            <button id="uLevel" data-unit="level">怒氣等級</button>
+            <button id="uRaw" data-unit="raw">點擊次數</button>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><span id="sMineL">你的等級總和</span><b id="sMine">–</b><small id="sMineAlt"></small></div>
+          <div class="stat"><span id="sAllL">全站等級總和</span><b id="sAll">–</b><small id="sAllAlt"></small></div>
+          <div class="stat"><span>受影響人次</span><b id="sPpl">–</b><small>需求統計看這個</small></div>
+        </div>
+        <p class="explain" id="explain"></p>
+      </section>
+
+      <section class="panel" aria-label="我送出的怒氣">
+        <h2 class="ttl" id="histTitle">我送出的怒氣</h2>
+        <ul class="hist" id="hist"></ul>
+      </section>
+
+      <section class="panel" aria-label="需求紀錄">
+        <h2 class="ttl">需求紀錄</h2>
+        <p class="note" style="margin-top:4px">每場討伐結束後自動留下一筆，可以整理成陳情或報表。</p>
+        <ul class="hist" id="demand"></ul>
+      </section>
+
+      <section class="panel" aria-label="規則">
+        <h2 class="ttl">規則</h2>
+        <ul class="rules">
+          <li>一批連擊：每下之間不超過 3 秒。停手 3 秒就送出，等級 = ⌊log₂(這批的點擊數)⌋。只按 1 下算誤觸。</li>
+          <li>一批送出後冷卻 30 秒，換站也一樣。</li>
+          <li>每一下都要真的按，長按、按住鍵盤都不會連發；間隔不到 0.06 秒的點擊不算。</li>
+          <li>要在站點 100 公尺內才能開始一批。中途離開，這批還是能打完送出，但下一批要回到站點才能發。</li>
+          <li>只有當下站點真的沒車（或沒位）時，怒氣才會計入需求統計。</li>
+        </ul>
+        <p class="explain" id="dataNote"></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+// ---------- config ----------
+// Taipei City open data, YouBike 2.0 live availability (about 1-minute refresh).
+const API_URL = 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json';
+const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+const REFRESH_MS = 60000;
+const RADIUS = 100, IDLE = 3000, COOLDOWN = 30000, MIN_GAP = 60, RAID_MS = 600000, TARGET = 20;
+const KEY = 'anger-station-proto-v4';
+
+// Demo stations: names are real places, positions approximate, numbers made up.
+const DEMO = [
+  {id:'d1', name:'捷運市政府站(3號出口)',   lat:25.0410, lng:121.5658, rent:0, ret:22},
+  {id:'d2', name:'市府轉運站',              lat:25.0418, lng:121.5682, rent:3, ret:10},
+  {id:'d3', name:'捷運國父紀念館站(2號出口)', lat:25.0413, lng:121.5574, rent:0, ret:25},
+  {id:'d4', name:'松山文創園區',            lat:25.0440, lng:121.5605, rent:9, ret:4},
+  {id:'d5', name:'捷運台北101/世貿站(2號出口)', lat:25.0331, lng:121.5628, rent:0, ret:18},
+  {id:'d6', name:'世貿三館',                lat:25.0346, lng:121.5612, rent:2, ret:0},
+  {id:'d7', name:'信義威秀',                lat:25.0357, lng:121.5671, rent:0, ret:30},
+  {id:'d8', name:'台北101',                 lat:25.0338, lng:121.5651, rent:7, ret:2},
+  {id:'d9', name:'捷運象山站(2號出口)',       lat:25.0328, lng:121.5697, rent:1, ret:0},
+  {id:'d10', name:'信義廣場',               lat:25.0372, lng:121.5643, rent:5, ret:6},
+];
+const DEMO_YOU = {lat:25.0412, lng:121.5661};
+
+const TIERS = [{name:'不爽', face:'😠'}, {name:'冒火', face:'🔥'}, {name:'爆發', face:'🌋'}, {name:'核爆', face:'💥'}];
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString('zh-TW');
+const lv = n => n < 1 ? null : 31 - Math.clz32(n);
+const tierOf = l => l == null ? -1 : l >= 10 ? 3 : l >= 7 ? 2 : l >= 4 ? 1 : 0;
+const typeName = t => t === 'rent' ? '借不到車' : '還不了車';
+const hhmm = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
+const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(s / 60)).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0'); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function haversine(a, b){
+  const R = 6371000, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r;
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function seeded(str){ let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
+function demoBase(s){
+  const out = {};
+  for (const t of ['rent', 'ret']) {
+    const r = seeded(s.id + t), hot = s[t] === 0;
+    const ppl = hot ? 300 + Math.floor(r() * 2500) : Math.floor(r() * 80);
+    const sends = Math.round(ppl * (1.6 + r())), avgLv = 3.5 + r() * 2;
+    out[t] = {ppl, sends, lv:Math.round(sends * avgLv), clicks:Math.round(sends * 2 ** avgLv * 1.3)};
+  }
+  return out;
+}
+const ZERO = {rent:{ppl:0, sends:0, lv:0, clicks:0}, ret:{ppl:0, sends:0, lv:0, clicks:0}};
+
+// ---------- state ----------
+const fresh = () => ({station:null, type:'rent', unit:'level', sound:true, you:null, speed:1, coolUntil:0, sends:{}, raids:{}, restocked:{}, demand:[]});
+let st = fresh();
+try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) st = Object.assign(fresh(), s); } catch(e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e) {} };
+
+let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false;
+let stations = DEMO.map(s => ({...s, base:demoBase(s)}));
+if (!st.you) st.you = {...DEMO_YOU};
+const byId = id => stations.find(s => s.id === id);
+const cur = () => byId(st.station) || nearest()[0];
+const k = (sid, t) => sid + ':' + t;
+const avail = (s, t) => st.restocked[k(s.id, t)] ?? s[t];
+const mySends = (sid, t) => (st.sends[k(sid, t)] ||= []);
+const distTo = s => haversine(st.you, s);
+const nearest = () => stations.slice().sort((a, b) => distTo(a) - distTo(b));
+const inRange = () => distTo(cur()) <= RADIUS;
+if (!byId(st.station)) st.station = nearest()[0].id;
+
+let combo = null, finTimer = 0, msgTimer = 0;
+function say(text, kind){ const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4500); }
+
+// ---------- map ----------
+const TILE = 256, mapEl = $('map');
+const view = {lat:st.you.lat, lng:st.you.lng, z:15};
+function proj(lat, lng, z){ const s = TILE * 2 ** z, r = lat * Math.PI / 180; return {x:(lng + 180) / 360 * s, y:(1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * s}; }
+function unproj(x, y, z){ const s = TILE * 2 ** z, n = Math.PI - 2 * Math.PI * y / s; return {lat:180 / Math.PI * Math.atan(Math.sinh(n)), lng:x / s * 360 - 180}; }
+function origin(){ const c = proj(view.lat, view.lng, view.z); return {x:c.x - mapEl.clientWidth / 2, y:c.y - mapEl.clientHeight / 2}; }
+const toScreen = (lat, lng, o) => { const p = proj(lat, lng, view.z); return {x:p.x - o.x, y:p.y - o.y}; };
+const tileImgs = new Map(), markerEls = new Map();
+
+function renderMap(){
+  const W = mapEl.clientWidth, H = mapEl.clientHeight, o = origin(), z = view.z;
+  mapEl.style.backgroundPosition = `${-o.x % 64}px ${-o.y % 64}px`;
+  // tiles
+  const want = new Set();
+  if (tilesOn) {
+    const n = 2 ** z;
+    for (let tx = Math.floor(o.x / TILE); tx <= Math.floor((o.x + W) / TILE); tx++)
+      for (let ty = Math.floor(o.y / TILE); ty <= Math.floor((o.y + H) / TILE); ty++) {
+        if (ty < 0 || ty >= n) continue;
+        const key = `${z}/${tx}/${ty}`; want.add(key);
+        let img = tileImgs.get(key);
+        if (!img) { img = new Image(); img.alt = ''; img.src = TILE_URL(z, ((tx % n) + n) % n, ty); $('tiles').appendChild(img); tileImgs.set(key, img); }
+        img.style.left = (tx * TILE - o.x) + 'px'; img.style.top = (ty * TILE - o.y) + 'px';
+      }
+  }
+  for (const [key, img] of tileImgs) if (!want.has(key)) { img.remove(); tileImgs.delete(key); }
+
+  // fence around the chosen station
+  const s = cur(), sp = toScreen(s.lat, s.lng, o);
+  const mpp = 156543.03392 * Math.cos(s.lat * Math.PI / 180) / 2 ** z;
+  const f = $('fence'); f.setAttribute('cx', sp.x); f.setAttribute('cy', sp.y); f.setAttribute('r', RADIUS / mpp);
+
+  // station markers (only those on screen)
+  const seen = new Set(), dots = z < 14, t = st.type;
+  for (const x of stations) {
+    const p = toScreen(x.lat, x.lng, o);
+    if (p.x < -40 || p.y < -40 || p.x > W + 40 || p.y > H + 40) continue;
+    seen.add(x.id);
+    let el = markerEls.get(x.id);
+    if (!el) {
+      el = document.createElement('button'); el.type = 'button';
+      el.addEventListener('click', () => pickStation(x.id, false));
+      $('markers').appendChild(el); markerEls.set(x.id, el);
+    }
+    const a = avail(x, t), r = st.raids[k(x.id, t)];
+    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (dots && x.id !== s.id ? ' dot' : '') + (x.id === s.id ? ' sel' : '') + (r && r.status === 'live' ? ' raid' : '');
+    el.textContent = a;
+    el.setAttribute('aria-label', `${x.name}，${t === 'rent' ? '可借' : '可還'} ${a}`);
+    el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
+  }
+  for (const [id, el] of markerEls) if (!seen.has(id)) { el.remove(); markerEls.delete(id); }
+
+  const yp = toScreen(st.you.lat, st.you.lng, o), yd = $('youDot');
+  yd.style.left = yp.x + 'px'; yd.style.top = yp.y + 'px';
+}
+
+// pan the map; drag the blue dot to "walk"
+let drag = null;
+mapEl.addEventListener('pointerdown', e => {
+  if (e.target.closest('.mk, .map-ctrl, .map-badge')) return;
+  const onYou = e.target === $('youDot');
+  if (onYou && gpsOn) { say('GPS 定位中，不能拖曳。關掉 GPS 才能手動移動'); return; }
+  drag = {you:onYou, x:e.clientX, y:e.clientY, c:proj(view.lat, view.lng, view.z)};
+  try { mapEl.setPointerCapture(e.pointerId); } catch(_) {}
+  if (!onYou) mapEl.classList.add('dragging');
+});
+mapEl.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const rect = mapEl.getBoundingClientRect(), o = origin();
+  if (drag.you) { st.you = unproj(o.x + e.clientX - rect.left, o.y + e.clientY - rect.top, view.z); renderStage(); }
+  else { const c = unproj(drag.c.x - (e.clientX - drag.x), drag.c.y - (e.clientY - drag.y), view.z); view.lat = c.lat; view.lng = c.lng; }
+  renderMap();
+});
+const endDrag = () => { if (!drag) return; const wasYou = drag.you; drag = null; mapEl.classList.remove('dragging'); if (wasYou) { save(); buildOptions(); renderStage(); } };
+mapEl.addEventListener('pointerup', endDrag); mapEl.addEventListener('pointercancel', endDrag);
+mapEl.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); }, {passive:false});
+function zoom(d){ view.z = Math.max(12, Math.min(18, view.z + d)); renderMap(); }
+$('zIn').addEventListener('click', () => zoom(1));
+$('zOut').addEventListener('click', () => zoom(-1));
+$('toMe').addEventListener('click', () => { view.lat = st.you.lat; view.lng = st.you.lng; renderMap(); });
+addEventListener('resize', () => { renderMap(); sizeCanvas(); });
+
+// ---------- station picking ----------
+function pickStation(id, center){
+  if (combo) { say('這批還沒送出，送出後才能換站', 'warn'); return; }
+  st.station = id; const s = cur();
+  if (avail(s, 'rent') === 0) st.type = 'rent'; else if (avail(s, 'ret') === 0) st.type = 'ret';
+  if (center) { view.lat = s.lat; view.lng = s.lng; }
+  save(); buildOptions(); renderAll();
+}
+const sel = $('stationSel');
+function buildOptions(){
+  const list = nearest().slice(0, 25), s = cur();
+  if (!list.includes(s)) list.unshift(s);
+  sel.innerHTML = '';
+  list.forEach(x => { const o = document.createElement('option'); o.value = x.id; const d = distTo(x); o.textContent = `${x.name}・${d < 1000 ? Math.round(d) + ' 公尺' : (d / 1000).toFixed(1) + ' 公里'}`; sel.appendChild(o); });
+  sel.value = s.id;
+}
+sel.addEventListener('change', () => pickStation(sel.value, true));
+[$('tRent'), $('tRet')].forEach(b => b.addEventListener('click', () => { if (combo) return say('這批還沒送出，送出後才能切換', 'warn'); st.type = b.dataset.type; save(); renderAll(); }));
+[$('uLevel'), $('uRaw')].forEach(b => b.addEventListener('click', () => { st.unit = b.dataset.unit; save(); renderAll(); }));
+$('soundBtn').addEventListener('click', () => { st.sound = !st.sound; save(); renderAll(); });
+$('walkHere').addEventListener('click', () => {
+  if (gpsOn) return say('GPS 定位中，請實際走過去');
+  const s = cur(); st.you = {lat:s.lat + 0.0002, lng:s.lng + 0.0001}; save(); buildOptions(); renderMap(); renderStage();
+});
+
+// ---------- live data ----------
+function parseLive(arr){
+  return arr.filter(x => x.act === undefined || String(x.act) === '1').map(x => ({
+    id:'tp' + x.sno,
+    name:String(x.sna || '').replace(/^YouBike2\.0_/, ''),
+    lat:+(x.latitude ?? x.lat), lng:+(x.longitude ?? x.lng),
+    rent:+(x.available_rent_bikes ?? x.sbi ?? 0), ret:+(x.available_return_bikes ?? x.bemp ?? 0),
+    time:x.updateTime || x.mday || null, base:ZERO,
+  })).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat > 20);
+}
+async function loadLive(){
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const res = await fetch(API_URL, {signal:ctl.signal, cache:'no-store'});
+    if (!res.ok) throw new Error(res.status);
+    const json = await res.json(), list = parseLive(Array.isArray(json) ? json : (json.retVal || json.data || []));
+    if (!list.length) throw new Error('empty');
+    return list;
+  } finally { clearTimeout(timer); }
+}
+async function refresh(first){
+  let list;
+  try { list = await loadLive(); } catch(e) {
+    if (mode === 'live') $('mapBadge').textContent = `即時資料更新失敗，顯示 ${dataTime ? hhmm(dataTime) : '上次'} 的資料`;
+    return false;
+  }
+  const wasDemo = mode === 'demo';
+  if (wasDemo && combo) return false; // don't swap stations mid-combo
+  mode = 'live'; stations = list; dataTime = Date.now();
+  st.restocked = {};
+  if (wasDemo) {
+    // drop demo-only state that points at demo stations
+    for (const key of Object.keys(st.raids)) if (key.startsWith('d')) delete st.raids[key];
+    if (!byId(st.station)) st.station = nearest()[0].id;
+    $('useGps').hidden = !('geolocation' in navigator);
+  }
+  // live boss events end as soon as the station has bikes/docks again
+  for (const r of Object.values(st.raids)) {
+    if (r.status !== 'live') continue;
+    const s = byId(r.sid); if (!s) continue;
+    const a = s[r.type]; if (a > 0) endRaid(r, 'restock', a);
+  }
+  save(); buildOptions(); renderAll();
+  return true;
+}
+function startGps(){
+  if (!('geolocation' in navigator)) return;
+  navigator.geolocation.watchPosition(p => {
+    gpsOn = true; st.you = {lat:p.coords.latitude, lng:p.coords.longitude};
+    $('locNote').textContent = `GPS 定位中（誤差約 ${Math.round(p.coords.accuracy)} 公尺）`;
+    $('useGps').hidden = true;
+    save(); buildOptions(); renderMap(); renderStage();
+  }, () => { gpsOn = false; $('locNote').textContent = '沒有取得定位權限，改用拖曳藍點'; }, {enableHighAccuracy:true, maximumAge:10000});
+}
+$('useGps').addEventListener('click', startGps);
+function probeTiles(){
+  const img = new Image();
+  img.onload = () => { tilesOn = true; renderMap(); renderBadge(); };
+  img.onerror = () => { tilesOn = false; renderBadge(); };
+  const p = proj(view.lat, view.lng, view.z);
+  img.src = TILE_URL(view.z, Math.floor(p.x / TILE), Math.floor(p.y / TILE));
+}
+function renderBadge(){
+  const b = $('mapBadge'), chip = $('modeChip');
+  if (mode === 'live') {
+    chip.textContent = '即時資料'; chip.className = 'chip live';
+    b.innerHTML = `台北市 YouBike 2.0 即時資料・${hhmm(dataTime)} 更新${tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : ''}`;
+    $('dataNote').textContent = '車位數來自台北市政府開放資料，每分鐘更新。其他人的怒氣和討伐的路人仍是模擬的，多人統計要接後端資料庫才會是真的。';
+  } else {
+    chip.textContent = '示範資料'; chip.className = 'chip';
+    b.textContent = tilesOn ? '示範站點・地圖 © OpenStreetMap 貢獻者' : '示範模式：這個預覽擋住了外部連線，所以用範例站點和空白底圖';
+    $('dataNote').textContent = '目前是示範模式：站名是真實地點，但位置是近似值，車位數和其他人的怒氣都是編的。把這個 HTML 檔放到一般網站（例如 GitHub Pages）上打開，會自動改用台北市即時 API、OpenStreetMap 地圖和手機 GPS。';
+  }
+}
+
+// ---------- combo ----------
+const coolLeft = () => Math.max(0, (st.coolUntil || 0) - Date.now());
+function tap(){
+  if (!combo) {
+    if (coolLeft()) { say(`冷卻中，還要 ${Math.ceil(coolLeft() / 1000)} 秒才能發下一批`, 'warn'); buzz(30); return; }
+    if (!inRange()) { say(`你離站點 ${Math.round(distTo(cur()))} 公尺，要回到 ${RADIUS} 公尺內才能開始新的一批`, 'warn'); buzz(30); return; }
+    combo = {n:0, sid:cur().id, type:st.type, last:0};
+  } else if (performance.now() - combo.last < MIN_GAP) return; // faster than a human finger: ignore
+  const before = lv(combo.n);
+  combo.n++; combo.last = performance.now();
+  const after = lv(combo.n);
+  buzz(after >= 7 ? 18 : 8); blip(after); spark(3 + Math.max(0, tierOf(after)) * 2, after);
+  if (after !== before && after > 0) levelUp(after);
+  clearTimeout(finTimer); finTimer = setTimeout(finalize, IDLE);
+  renderStage(); tickTimer();
+}
+function finalize(){
+  const c = combo; combo = null; if (!c) return;
+  const s = byId(c.sid);
+  if (c.n < 2 || !s) { say('只按 1 下算誤觸，這批沒有送出'); renderAll(); return; }
+  const l = lv(c.n), counted = avail(s, c.type) === 0;
+  mySends(c.sid, c.type).unshift({t:Date.now(), n:c.n, l, counted});
+  st.coolUntil = Date.now() + COOLDOWN;
+  const r = st.raids[k(c.sid, c.type)];
+  if (counted && r && r.status === 'live') { r.you = r.you ? {n:Math.max(r.you.n, c.n), l:Math.max(r.you.l, l), sends:r.you.sends + 1} : {n:c.n, l, sends:1}; checkWin(r); }
+  save();
+  const left = !inRange();
+  say(`已送出 Lv.${l}（${fmt(c.n)} 下）` + (counted ? '' : '，這站當下有車，不計入需求統計') + (left ? '。你已離開站點，下一批要回去才能發' : ''), left ? 'warn' : 'good');
+  renderAll();
+}
+function tickTimer(){
+  if (!combo) return;
+  const left = Math.max(0, IDLE - (performance.now() - combo.last));
+  $('timerBar').style.width = (left / IDLE * 100) + '%';
+  $('timerTxt').textContent = `${(left / 1000).toFixed(1)} 秒內繼續按會接續這批`;
+  if (left > 0) requestAnimationFrame(tickTimer);
+}
+
+// ---------- boss raid ----------
+function raidFor(s, t){
+  const key = k(s.id, t);
+  if (!st.raids[key] && avail(s, t) === 0) st.raids[key] = {sid:s.id, type:t, elapsed:0, others:[], you:null, status:'live', defeated:false, startedAt:Date.now()};
+  return st.raids[key] || null;
+}
+function checkWin(r){ if (!r.defeated && r.others.length + (r.you ? 1 : 0) >= TARGET) { r.defeated = true; if (r.sid === cur().id && r.type === st.type) { say('魔王被打倒了！統計會繼續到 10 分鐘結束', 'good'); fanfare(); } } }
+function endRaid(r, outcome, jump){
+  r.status = 'ended'; r.outcome = outcome; r.jump = jump || 0;
+  const s = byId(r.sid), ppl = r.others.length + (r.you ? 1 : 0);
+  st.demand.unshift({at:Date.now(), sid:r.sid, type:r.type, ppl, defeated:r.defeated, outcome, jump:r.jump, mins:r.elapsed / 60000, name:s ? s.name : r.sid});
+  st.demand = st.demand.slice(0, 50);
+  save();
+}
+let lastTick = performance.now();
+setInterval(() => {
+  const now = performance.now(), dt = (now - lastTick) * st.speed; lastTick = now;
+  if (!combo && st.coolUntil && Date.now() < st.coolUntil + 500) renderStage();
+  const s = cur(), r = st.raids[k(s.id, st.type)];
+  if (!r || r.status !== 'live') return;
+  const wasDefeated = r.defeated;
+  r.elapsed += dt;
+  // simulated passers-by arriving at an empty station (about 27 per 10 minutes)
+  let expect = dt / 1000 * 0.045;
+  while (expect > 0) { if (Math.random() < Math.min(1, expect)) r.others.push({name:'路人 #' + (r.others.length + 1), l:1 + Math.floor(Math.random() ** 1.6 * 10)}); expect -= 1; }
+  checkWin(r);
+  if (r.elapsed >= RAID_MS) { r.elapsed = RAID_MS; endRaid(r, 'timeup'); save(); renderAll(); return; }
+  save();
+  if (r.defeated !== wasDefeated) renderBoss(); else updateLive(r);
+}, 250);
+
+function chipsFor(r){
+  return (r.you ? [`<span class="me">你 Lv.${r.you.l}</span>`] : []).concat(r.others.slice(-14).reverse().map(o => `<span>${o.name} Lv.${o.l}</span>`)).join('');
+}
+function youLine(r){
+  const mvp = [...r.others.map(o => o.l), r.you ? r.you.l : -1].reduce((a, b) => Math.max(a, b), -1);
+  return r.you ? `你已參戰：送出 ${r.you.sends} 批，最高 <b>Lv.${r.you.l}</b>${r.you.l === mvp ? '，目前是本場最高等級' : ''}` : '在站點送出一批 Lv.1 以上的怒氣，就算參戰。人數決定勝負，等級只影響你的排名和特效。';
+}
+function updateLive(r){
+  const ppl = r.others.length + (r.you ? 1 : 0), el = id => document.getElementById(id);
+  if (!el('bClock')) return renderBoss();
+  el('bClock').textContent = mmss(RAID_MS - r.elapsed);
+  el('bHp').style.width = Math.min(100, ppl / TARGET * 100) + '%';
+  el('bPpl').textContent = ppl;
+  el('bYou').innerHTML = youLine(r);
+  el('bJoin').innerHTML = chipsFor(r) || '<span>還沒有人參戰</span>';
+}
+function renderBoss(){
+  const s = cur(), t = st.type, p = $('bossPanel'), r = raidFor(s, t);
+  const what = t === 'rent' ? '空站魔王' : '滿站魔王', back = t === 'rent' ? '有車' : '有位';
+  if (!r) {
+    p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
+      <p class="explain">${esc(s.name)} 目前${t === 'rent' ? `有 ${avail(s, t)} 輛車可借` : `有 ${avail(s, t)} 個空位可還`}，沒有${what}。魔王只會在即時資料顯示 0 ${t === 'rent' ? '輛' : '位'}時出現，地圖上會有一圈脈動標示。</p>`;
+    return;
+  }
+  const ppl = r.others.length + (r.you ? 1 : 0), pct = Math.min(100, ppl / TARGET * 100), chips = chipsFor(r);
+  if (r.status === 'live') {
+    p.innerHTML = `<div class="boss-head"><h2 class="ttl">${what}出現・${typeName(t)}</h2><span class="clock" id="bClock" aria-label="剩餘時間">${mmss(RAID_MS - r.elapsed)}</span></div>
+      <div class="hp">
+        <div class="bar" aria-hidden="true"><i id="bHp" style="width:${pct}%"></i></div>
+        <div class="hp-row"><span>${r.defeated ? '已打倒！繼續統計到時間結束' : `10 分鐘內 ${TARGET} 人在現場送出怒氣就能打倒`}</span><span><b id="bPpl">${ppl}</b> / ${TARGET} 人</span></div>
+      </div>
+      <div class="you-box" id="bYou">${youLine(r)}</div>
+      <div class="joiners" id="bJoin" aria-label="參戰者">${chips || '<span>還沒有人參戰</span>'}</div>
+      <div class="boss-tools">
+        <div class="seg" role="group" aria-label="模擬速度"><button data-sp="1" aria-pressed="${st.speed === 1}">1×</button><button data-sp="10" aria-pressed="${st.speed === 10}">10×</button><button data-sp="60" aria-pressed="${st.speed === 60}">60×</button></div>
+        ${mode === 'demo' ? `<button class="ghost" id="restock">模擬：站點恢復${back}</button>` : ''}
+      </div>
+      <p class="note" style="margin-top:8px">${mode === 'live' ? `路人是模擬的。即時資料一顯示${back}，魔王就會撤退。` : '路人是模擬的；速度只影響模擬時鐘。'}</p>`;
+  } else {
+    const head = r.outcome === 'restock' ? `站點恢復${back}，魔王撤退` : (r.defeated ? '討伐成功' : '時間到，魔王還在');
+    const jumpTxt = r.outcome === 'restock' && r.jump >= 5 ? `一次多了 ${r.jump} ${t === 'rent' ? '輛' : '位'}，疑似調度。` : '';
+    p.innerHTML = `<div class="boss-head"><h2 class="ttl">${what}・${typeName(t)}</h2><span class="clock">${mmss(RAID_MS - r.elapsed)}</span></div>
+      <div class="result"><b>${head}</b>${r.outcome === 'restock' ? `${t === 'rent' ? '空站' : '滿站'}持續了 ${(r.elapsed / 60000).toFixed(1)} 分鐘，這段時間有 ${ppl} 人在現場${typeName(t)}。${jumpTxt}` : `10 分鐘內有 ${ppl} 人在現場${typeName(t)}。`}${r.you ? ` 你最高打出 Lv.${r.you.l}。` : ''}</div>
+      <div class="joiners">${chips}</div>
+      <div class="boss-tools"><button class="ghost" id="again">再開一場（模擬）</button></div>`;
+  }
+  p.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => { st.speed = +b.dataset.sp; save(); renderBoss(); }));
+  const rs = p.querySelector('#restock');
+  if (rs) rs.addEventListener('click', () => { st.restocked[k(s.id, t)] = 6; endRaid(r, 'restock', 6); renderAll(); say(`站點恢復${back}，之後在這站送出的怒氣不會計入需求統計`); });
+  const ag = p.querySelector('#again');
+  if (ag) ag.addEventListener('click', () => { delete st.restocked[k(s.id, t)]; delete st.raids[k(s.id, t)]; save(); renderAll(); });
+}
+
+// ---------- render ----------
+function renderStage(){
+  const s = cur(), raw = st.unit === 'raw', btn = $('angerBtn'), d = distTo(s), here = d <= RADIUS;
+  const cool = combo ? 0 : coolLeft(), coolS = Math.ceil(cool / 1000);
+  const locked = !combo && (!!cool || !here);
+  $('distTxt').textContent = d < 1000 ? `${Math.round(d)} 公尺` : `${(d / 1000).toFixed(1)} 公里`;
+  const pill = $('locPill');
+  if (combo && !here) { pill.textContent = '已離開，這批可打完'; pill.className = 'pill mid'; }
+  else if (here) { pill.textContent = '在 100 公尺內'; pill.className = 'pill'; }
+  else { pill.textContent = '不在站點'; pill.className = 'pill out'; }
+  sel.disabled = !!combo; $('tRent').disabled = $('tRet').disabled = !!combo;
+
+  btn.dataset.locked = locked;
+  $('cta').textContent = cool ? `冷卻 ${coolS} 秒` : locked ? '不在站點' : '按下去';
+  if (combo) {
+    const n = combo.n, l = lv(n), t = tierOf(l);
+    $('tierName').textContent = TIERS[Math.max(0, t)].face + ' 這批：' + TIERS[Math.max(0, t)].name;
+    if (raw) { $('big').textContent = fmt(n); $('sub').textContent = `下 · Lv.${l}`; }
+    else { $('big').textContent = `Lv.${l}`; $('sub').textContent = `${fmt(n)} 下`; }
+    btn.dataset.tier = Math.max(0, t);
+    btn.style.setProperty('--glow', Math.min(60, (l + 1) * 5));
+    $('face').textContent = TIERS[Math.max(0, t)].face;
+    const lower = 2 ** l, next = 2 ** (l + 1);
+    $('lvlBar').style.width = ((n - lower) / (next - lower) * 100) + '%';
+    $('lvlTxt').textContent = `再按 ${fmt(next - n)} 下這批升到 Lv.${l + 1}`;
+  } else {
+    const last = mySends(s.id, st.type)[0];
+    $('tierName').textContent = cool ? '⏳ 冷卻中' : locked ? '📍 先回到站點' : '準備開始一批';
+    $('big').textContent = raw ? '0' : 'Lv.–';
+    $('sub').textContent = last ? `上一批 Lv.${last.l} · ${fmt(last.n)} 下` : '按下去開始連擊';
+    btn.dataset.tier = 0; btn.style.setProperty('--glow', 0);
+    $('face').textContent = cool ? '⏳' : locked ? '📍' : '😠';
+    $('lvlBar').style.width = '0%';
+    $('lvlTxt').textContent = '按 2 下就是 Lv.1';
+    $('timerBar').style.width = (cool / COOLDOWN * 100) + '%';
+    $('timerTxt').textContent = cool ? `冷卻中，${coolS} 秒後可以發下一批` : '停手 3 秒，這批就會送出';
+  }
+}
+function renderAll(){
+  const s = cur(), t = st.type, raw = st.unit === 'raw';
+  if (sel.value !== s.id) buildOptions();
+  const a = avail(s, 'rent'), b = avail(s, 'ret');
+  $('rentN').textContent = a; $('rentN').className = a === 0 ? 'zero' : 'okv';
+  $('retN').textContent = b;  $('retN').className = b === 0 ? 'zero' : 'okv';
+  $('tRent').setAttribute('aria-pressed', t === 'rent'); $('tRet').setAttribute('aria-pressed', t === 'ret');
+  $('uLevel').setAttribute('aria-pressed', !raw); $('uRaw').setAttribute('aria-pressed', raw);
+  $('soundBtn').textContent = '音效：' + (st.sound ? '開' : '關'); $('soundBtn').setAttribute('aria-pressed', st.sound);
+  renderBoss(); renderStage(); renderMap(); renderBadge();
+
+  // my sends
+  const list = mySends(s.id, t);
+  $('histTitle').textContent = `我送出的怒氣・${typeName(t)}`;
+  const h = $('hist'); h.innerHTML = '';
+  if (!list.length) h.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">在這站還沒送出過。連按幾下再停手 3 秒，就會出現在這裡。</span></li>';
+  list.slice(0, 10).forEach(e => {
+    const li = document.createElement('li');
+    li.innerHTML = `<time>${hhmm(e.t)}</time><span class="v">${raw ? fmt(e.n) + ' 下' : 'Lv.' + e.l}<small>${raw ? 'Lv.' + e.l : fmt(e.n) + ' 下'}</small></span><span class="tag ${e.counted ? 'in' : 'no'}">${e.counted ? '計入需求' : '當下有車，未計入'}</span>`;
+    h.appendChild(li);
+  });
+
+  // station stats
+  const counted = list.filter(e => e.counted);
+  const mine = {sends:list.length, clicks:list.reduce((x, e) => x + e.n, 0), lv:list.reduce((x, e) => x + e.l, 0), max:list.reduce((x, e) => Math.max(x, e.l), 0)};
+  const base = s.base[t];
+  const all = {sends:base.sends + counted.length, clicks:base.clicks + counted.reduce((x, e) => x + e.n, 0), lv:base.lv + counted.reduce((x, e) => x + e.l, 0)};
+  $('statTitle').textContent = `本站怒氣・${typeName(t)}`;
+  $('sMineL').textContent = raw ? '你的點擊總數' : '你的等級總和';
+  $('sAllL').textContent = raw ? '全站點擊總數' : '全站等級總和';
+  $('sMine').textContent = fmt(raw ? mine.clicks : mine.lv);
+  $('sMineAlt').textContent = mine.sends ? `${mine.sends} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(mine.clicks / mine.sends))} 下` : `最高 Lv.${mine.max}`) : '還沒送出';
+  $('sAll').textContent = fmt(raw ? all.clicks : all.lv);
+  $('sAllAlt').textContent = all.sends ? `${fmt(all.sends)} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(all.clicks / all.sends))} 下` : `平均 Lv.${(all.lv / all.sends).toFixed(1)}`) : (mode === 'live' ? '需要後端才有其他人的資料' : '還沒有人送出');
+  $('sPpl').textContent = fmt(base.ppl + (counted.length ? 1 : 0));
+  $('explain').textContent = raw
+    ? '點擊次數：一次 Lv.7 要 128 下，十次 Lv.3 只要 80 下。原始點擊量反映的是「多用力」。'
+    : '等級總和：每批之間要冷卻 30 秒，等級只當強度參考，需求量看受影響人次。';
+
+  // demand log
+  const d = $('demand'); d.innerHTML = '';
+  if (!st.demand.length) d.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">還沒有紀錄。討伐結束（時間到或站點恢復）就會出現。可以把模擬速度調到 60× 試試。</span></li>';
+  st.demand.slice(0, 8).forEach(r => {
+    const li = document.createElement('li');
+    const how = r.outcome === 'restock' ? `${r.type === 'rent' ? '空站' : '滿站'} ${r.mins.toFixed(1)} 分鐘後恢復${r.jump >= 5 ? '（疑似調度）' : ''}` : '10 分鐘內';
+    li.innerHTML = `<time>${hhmm(r.at)}</time><span>${esc(r.name)}・${typeName(r.type)}<br><span class="note">${how}，<b>${r.ppl}</b> 人在現場受影響</span></span><span class="tag ${r.defeated ? 'in' : 'no'}">${r.defeated ? '討伐成功' : r.outcome === 'restock' ? '已恢復' : '未打倒'}</span>`;
+    d.appendChild(li);
+  });
+}
+
+// ---------- feedback ----------
+function buzz(ms){ try { navigator.vibrate && navigator.vibrate(ms); } catch(e) {} }
+let ac = null;
+function audio(){ try { return ac ||= new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; } }
+function blip(l){
+  if (!st.sound) return; const c = audio(); if (!c) return;
+  try {
+    const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime;
+    o.type = 'square'; o.frequency.setValueAtTime(160 + (l ?? 0) * 45, t0);
+    o.frequency.exponentialRampToValueAtTime(90 + (l ?? 0) * 20, t0 + .07);
+    g.gain.setValueAtTime(.06, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + .08);
+    o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + .09);
+  } catch(e) {}
+}
+function fanfare(){
+  if (!st.sound) return; const c = audio(); if (!c) return;
+  try {
+    [0, .08, .16].forEach((d, i) => {
+      const o = c.createOscillator(), g = c.createGain(), t0 = c.currentTime + d;
+      o.type = 'sawtooth'; o.frequency.setValueAtTime([330, 440, 660][i], t0);
+      g.gain.setValueAtTime(.05, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + .18);
+      o.connect(g).connect(c.destination); o.start(t0); o.stop(t0 + .2);
+    });
+  } catch(e) {}
+}
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const cv = $('fx'), cx = cv.getContext('2d');
+let parts = [], raf = 0;
+function sizeCanvas(){ const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; cx.setTransform(d, 0, 0, d, 0, 0); }
+sizeCanvas();
+function spark(n, l){
+  if (reduce) return;
+  const r = cv.getBoundingClientRect(), css = getComputedStyle(document.documentElement);
+  const cols = ['--heat1','--heat2','--heat3','--heat4'].map(x => css.getPropertyValue(x).trim());
+  const top = Math.max(0, tierOf(l));
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * (3 + (l ?? 0) * .5);
+    parts.push({x:r.width/2 + Math.cos(a) * r.width * .28, y:r.height/2 + Math.sin(a) * r.height * .28, vx:Math.cos(a) * sp, vy:Math.sin(a) * sp - 1, life:1, c:cols[Math.floor(Math.random() * (top + 1))], s:2 + Math.random() * 3});
+  }
+  if (parts.length > 400) parts.splice(0, parts.length - 400);
+  if (!raf) raf = requestAnimationFrame(step);
+}
+function step(){
+  const r = cv.getBoundingClientRect(); cx.clearRect(0, 0, r.width, r.height);
+  parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .03; cx.globalAlpha = Math.max(0, p.life); cx.fillStyle = p.c; cx.beginPath(); cx.arc(p.x, p.y, p.s, 0, 7); cx.fill(); });
+  parts = parts.filter(p => p.life > 0); cx.globalAlpha = 1;
+  raf = parts.length ? requestAnimationFrame(step) : 0;
+}
+function levelUp(l){
+  const t = tierOf(l), b = $('burst');
+  b.textContent = `升級！Lv.${l} ${TIERS[t].name}`;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  spark(30 + l * 4, l); fanfare();
+  if (!reduce) { const sg = $('stage'); sg.classList.remove('shake'); void sg.offsetWidth; sg.classList.add('shake'); }
+}
+
+// one press = one tap: no hold-to-repeat, and held keys don't auto-repeat
+const btn = $('angerBtn');
+const stop = () => btn.classList.remove('down');
+btn.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  try { btn.setPointerCapture(e.pointerId); } catch(_) {}
+  btn.classList.add('down'); tap();
+});
+['pointerup','pointercancel','lostpointercapture'].forEach(ev => btn.addEventListener(ev, stop));
+btn.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  if (!e.repeat) tap();
+});
+btn.addEventListener('click', e => e.preventDefault());
+btn.addEventListener('contextmenu', e => e.preventDefault());
+
+// reset with inline confirm
+const box = $('resetBox');
+function resetIdle(){ box.innerHTML = '<button class="ghost" id="resetBtn">清除我的紀錄</button>'; $('resetBtn').addEventListener('click', resetAsk); }
+function resetAsk(){
+  box.innerHTML = '<button class="ghost" id="rYes" style="border-color:var(--bad);color:var(--bad)">確定清除</button> <button class="ghost" id="rNo">取消</button>';
+  $('rYes').addEventListener('click', () => {
+    clearTimeout(finTimer); combo = null;
+    const keep = {you:st.you, station:st.station, type:st.type, unit:st.unit, sound:st.sound};
+    st = Object.assign(fresh(), keep); save(); resetIdle(); renderAll(); say('已清除你的紀錄');
+  });
+  $('rNo').addEventListener('click', resetIdle); $('rNo').focus();
+}
+$('resetBtn').addEventListener('click', resetAsk);
+
+// ---------- boot ----------
+buildOptions(); renderAll(); probeTiles();
+refresh(true).then(ok => { if (ok) { startGps(); setInterval(refresh, REFRESH_MS); } });
+})();
+</script>
+</body></html>
