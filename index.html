@@ -178,7 +178,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.5</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.6</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -308,8 +308,12 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 <script>
 (() => {
 // ---------- config ----------
-// Taipei City open data, YouBike 2.0 live availability (about 1-minute refresh).
-const API_URL = 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json';
+// YouBike 2.0 live availability from each city's open data (about 1-minute refresh).
+// New Taipei serves the same fields in pages of up to 1,000 stations.
+const SOURCES = [
+  {city:'台北市', prefix:'tp', url:() => 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json'},
+  {city:'新北市', prefix:'nt', url:page => `https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json?page=${page}&size=1000`, paged:true},
+];
 const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const REFRESH_MS = 60000;
 const RADIUS = 100, IDLE = 3000, COOLDOWN = 30000, MIN_GAP = 60, RAID_MS = 600000, TARGET = 20;
@@ -363,7 +367,7 @@ let st = fresh();
 try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) st = Object.assign(fresh(), s); } catch(e) {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e) {} };
 
-let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false, liveErr = '';
+let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false, liveErr = '', partialErr = '';
 let stations = DEMO.map(s => ({...s, base:demoBase(s)}));
 if (!st.you) st.you = {...DEMO_YOU};
 const byId = id => stations.find(s => s.id === id);
@@ -530,29 +534,48 @@ $('walkHere').addEventListener('click', () => {
 });
 
 // ---------- live data ----------
-function parseLive(arr){
+function parseLive(arr, prefix){
   return arr.filter(x => x.act === undefined || String(x.act) === '1').map(x => ({
-    id:'tp' + x.sno,
+    id:prefix + x.sno,
     name:String(x.sna || '').replace(/^YouBike2\.0_/, ''),
     lat:+(x.latitude ?? x.lat), lng:+(x.longitude ?? x.lng),
     rent:+(x.available_rent_bikes ?? x.sbi ?? 0), ret:+(x.available_return_bikes ?? x.bemp ?? 0),
     time:x.updateTime || x.mday || null, base:ZERO,
   })).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat > 20);
 }
-async function loadLive(){
+async function getJson(url){
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
   try {
-    const res = await fetch(API_URL, {signal:ctl.signal, cache:'no-store'});
+    const res = await fetch(url, {signal:ctl.signal, cache:'no-store'});
     if (!res.ok) throw new Error(res.status);
-    const json = await res.json(), list = parseLive(Array.isArray(json) ? json : (json.retVal || json.data || []));
-    if (!list.length) throw new Error('empty');
-    return list;
+    const json = await res.json();
+    return Array.isArray(json) ? json : (json.retVal || json.data || []);
   } finally { clearTimeout(timer); }
+}
+async function loadSource(src){
+  let rows = [];
+  if (!src.paged) rows = await getJson(src.url());
+  else for (let page = 0; page < 6; page++) { const part = await getJson(src.url(page)); rows = rows.concat(part); if (part.length < 1000) break; }
+  const list = parseLive(rows, src.prefix);
+  if (!list.length) throw new Error('empty');
+  return list;
+}
+const errText = e => e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.message) ? `伺服器回應 ${e.message}` : e.message === 'empty' ? '資料是空的' : `${e.name}: ${e.message}`;
+// load every city; succeed if at least one answers, and remember which failed
+let liveCities = [];
+async function loadLive(){
+  const results = await Promise.allSettled(SOURCES.map(loadSource));
+  const list = [], ok = [], bad = [];
+  results.forEach((r, i) => { if (r.status === 'fulfilled') { list.push(...r.value); ok.push(SOURCES[i].city); } else bad.push(`${SOURCES[i].city}：${errText(r.reason)}`); });
+  partialErr = bad.join('；');
+  if (!list.length) throw new Error(partialErr || 'empty');
+  liveCities = ok;
+  return list;
 }
 async function refresh(first){
   let list;
   try { list = await loadLive(); liveErr = ''; } catch(e) {
-    liveErr = e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.message) ? `伺服器回應 ${e.message}` : e.message === 'empty' ? '資料是空的' : `${e.name}: ${e.message}`;
+    liveErr = partialErr || errText(e);
     if (mode === 'live') $('mapBadge').textContent = `即時資料更新失敗（${liveErr}），顯示 ${dataTime ? hhmm(dataTime) : '上次'} 的資料`;
     else renderBadge();
     return false;
@@ -566,6 +589,7 @@ async function refresh(first){
     for (const key of Object.keys(st.raids)) if (key.startsWith('d')) delete st.raids[key];
     if (!byId(st.station)) st.station = nearest()[0].id;
   }
+  followNearest(true);
   // live boss events end as soon as the station has bikes/docks again
   for (const r of Object.values(st.raids)) {
     if (r.status !== 'live') continue;
@@ -574,6 +598,21 @@ async function refresh(first){
   }
   save(); buildOptions(); renderAll();
   return true;
+}
+// with a real position, keep the chosen station the nearest one unless the user is mid-combo
+// or still within reach of a station they picked by hand
+function followNearest(force){
+  if (!gpsOn || combo) return;
+  const n = nearest()[0];
+  if (!n || n.id === st.station) return;
+  if (force || distTo(cur()) > RADIUS) { st.station = n.id; if (avail(n, 'rent') === 0) st.type = 'rent'; else if (avail(n, 'ret') === 0) st.type = 'ret'; }
+}
+let gpsAcc = 0;
+function gpsNote(){
+  if (!gpsOn) return;
+  const far = distTo(nearest()[0]) > 2000;
+  $('locNote').textContent = `GPS 定位中（誤差約 ${gpsAcc} 公尺）` + (gpsAcc > RADIUS ? '。誤差比 100 公尺範圍還大，電腦通常只能用網路粗估位置，請改用手機' : '')
+    + (far ? (mode === 'demo' ? '。示範站點都在信義區，離你很遠' : `。2 公里內沒有站點，目前只有${liveCities.join('、')}的資料`) : '');
 }
 // GPS works in demo mode too; it only needs a secure page (https or localhost)
 let gpsWatch = null;
@@ -586,12 +625,11 @@ function startGps(){
   let first = true;
   gpsWatch = navigator.geolocation.watchPosition(p => {
     gpsOn = true; st.you = {lat:p.coords.latitude, lng:p.coords.longitude};
-    if (first) { first = false; view.lat = st.you.lat; view.lng = st.you.lng; }
-    const far = mode === 'demo' && distTo(nearest()[0]) > 2000;
-    const acc = Math.round(p.coords.accuracy);
-    $('locNote').textContent = `GPS 定位中（誤差約 ${acc} 公尺）` + (acc > RADIUS ? '。誤差比 100 公尺範圍還大，電腦通常只能用網路粗估位置，請改用手機' : '') + (far ? '。示範站點都在信義區，離你很遠' : '');
+    if (first) { view.lat = st.you.lat; view.lng = st.you.lng; }
+    followNearest(first); first = false;
+    gpsAcc = Math.round(p.coords.accuracy);
     $('useGps').hidden = true;
-    save(); buildOptions(); renderMap(); renderStage();
+    save(); buildOptions(); renderAll();
   }, err => {
     gpsOn = false;
     if (gpsWatch !== null) navigator.geolocation.clearWatch(gpsWatch);
@@ -613,8 +651,8 @@ function renderBadge(){
   const b = $('mapBadge'), chip = $('modeChip');
   if (mode === 'live') {
     chip.textContent = '即時資料'; chip.className = 'chip live';
-    b.innerHTML = `台北市 YouBike 2.0 即時資料・${hhmm(dataTime)} 更新${tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : ''}`;
-    $('dataNote').textContent = '車位數來自台北市政府開放資料，每分鐘更新。其他人的怒氣和討伐的路人仍是模擬的，多人統計要接後端資料庫才會是真的。';
+    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
+    $('dataNote').textContent = '車位數來自台北市、新北市政府開放資料，每分鐘更新。其他人的怒氣和討伐的路人仍是模擬的，多人統計要接後端資料庫才會是真的。';
   } else {
     chip.textContent = '示範資料'; chip.className = 'chip';
     b.textContent = (liveErr ? `讀不到即時資料（${liveErr}），改用示範站點` : '示範站點') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '・地圖圖磚也載不到，改用空白底圖');
@@ -750,6 +788,7 @@ function renderStage(){
   const cool = combo ? 0 : coolLeft(), coolS = Math.ceil(cool / 1000);
   const locked = !combo && (!!cool || !here);
   $('distTxt').textContent = d < 1000 ? `${Math.round(d)} 公尺` : `${(d / 1000).toFixed(1)} 公里`;
+  gpsNote();
   const pill = $('locPill');
   if (combo && !here) { pill.textContent = '已離開，這批可打完'; pill.className = 'pill mid'; }
   else if (here) { pill.textContent = '在 100 公尺內'; pill.className = 'pill'; }
