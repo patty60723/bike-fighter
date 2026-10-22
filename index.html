@@ -65,10 +65,12 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .mk.s0{background:var(--bad)} .mk.s1{background:var(--heat1);color:var(--on-heat1)} .mk.s2{background:var(--ok)}
 .mk.dot{min-width:12px;width:12px;height:12px;padding:0;font-size:0;border-width:1.5px}
 .mk.sel{z-index:4;outline:3px solid var(--ink);outline-offset:1px;transform:translate(-50%,-50%) scale(1.15)}
+.mk.sel::before{content:attr(data-name);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;
+  font-family:var(--f-body);font-size:12px;font-weight:700;line-height:1.4;padding:2px 8px;border-radius:6px;background:var(--ink);color:var(--surface);pointer-events:none}
 .mk.raid::after{content:"";position:absolute;inset:-7px;border-radius:999px;border:2px solid var(--boss);animation:pulse 1.6s ease-out infinite}
 @keyframes pulse{0%{opacity:.9;transform:scale(.9)}100%{opacity:0;transform:scale(1.5)}}
 .you{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--you);border:3px solid var(--surface);
-  box-shadow:0 0 0 7px color-mix(in srgb,var(--you) 25%,transparent);cursor:grab;touch-action:none;z-index:5}
+  box-shadow:0 0 0 7px color-mix(in srgb,var(--you) 25%,transparent);cursor:grab;touch-action:none;z-index:2}
 .you.sim{background:color-mix(in srgb,var(--you) 30%,transparent);border:3px dashed var(--you);box-shadow:none}
 .map-ctrl{position:absolute;right:10px;top:10px;display:grid;gap:6px;z-index:6}
 .map-ctrl button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:18px;font-weight:700;display:grid;place-items:center}
@@ -178,7 +180,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.7</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.8</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -370,6 +372,8 @@ const ZERO = {rent:{ppl:0, sends:0, lv:0, clicks:0}, ret:{ppl:0, sends:0, lv:0, 
 const fresh = () => ({station:null, type:'rent', unit:'level', sound:true, you:null, speed:1, coolUntil:0, sends:{}, raids:{}, restocked:{}, demand:[]});
 let st = fresh();
 try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) st = Object.assign(fresh(), s); } catch(e) {}
+// a boss only lives 10 minutes; drop ones left running from an earlier visit
+for (const [key, r] of Object.entries(st.raids)) if (r.status === 'live' && Date.now() - (r.startedAt || 0) > RAID_MS) delete st.raids[key];
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e) {} };
 
 let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false, liveErr = '', partialErr = '';
@@ -433,8 +437,9 @@ function renderMap(){
       $('markers').appendChild(el); markerEls.set(x.id, el);
     }
     const a = avail(x, t), r = st.raids[k(x.id, t)];
-    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (dots && x.id !== s.id ? ' dot' : '') + (x.id === s.id ? ' sel' : '') + (r && r.status === 'live' ? ' raid' : '');
+    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (dots && x.id !== s.id ? ' dot' : '') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && r && r.status === 'live' ? ' raid' : '');
     el.textContent = a;
+    if (x.id === s.id) el.dataset.name = x.name; else delete el.dataset.name;
     el.setAttribute('aria-label', `${x.name}，${t === 'rent' ? '可借' : '可還'} ${a}`);
     el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
   }
@@ -448,6 +453,8 @@ function renderMap(){
 
 // pan the map; drag the blue dot to "walk"
 // zoom one level, keeping the map point under (sx, sy) in place; defaults to the map centre
+// while following, the map keeps the GPS position centred; panning stops it, the ◎ button resumes it
+let follow = true;
 function zoom(d, sx, sy){
   const z2 = Math.max(12, Math.min(18, view.z + d)); if (z2 === view.z) return;
   const W = mapEl.clientWidth, H = mapEl.clientHeight;
@@ -486,7 +493,7 @@ mapEl.addEventListener('pointermove', e => {
   if (!drag) return;
   const o = origin(), l = local(e);
   if (drag.you) { st.you = unproj(o.x + l.x, o.y + l.y, view.z); renderStage(); }
-  else { const c = unproj(drag.c.x - (e.clientX - drag.x), drag.c.y - (e.clientY - drag.y), view.z); view.lat = c.lat; view.lng = c.lng; }
+  else { follow = false; const c = unproj(drag.c.x - (e.clientX - drag.x), drag.c.y - (e.clientY - drag.y), view.z); view.lat = c.lat; view.lng = c.lng; }
   renderMap();
 });
 const endDrag = e => {
@@ -510,7 +517,7 @@ mapEl.addEventListener('wheel', e => {
 mapEl.addEventListener('dblclick', e => { if (e.target.closest('.mk, .map-ctrl, .you')) return; const l = local(e); zoom(1, l.x, l.y); });
 $('zIn').addEventListener('click', () => zoom(1));
 $('zOut').addEventListener('click', () => zoom(-1));
-$('toMe').addEventListener('click', () => { view.lat = st.you.lat; view.lng = st.you.lng; renderMap(); });
+$('toMe').addEventListener('click', () => { follow = true; view.lat = st.you.lat; view.lng = st.you.lng; renderMap(); });
 addEventListener('resize', () => { renderMap(); sizeCanvas(); });
 
 // ---------- station picking ----------
@@ -588,11 +595,15 @@ const errText = e => e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.m
   : e.message.startsWith('fields:') ? `找不到車數欄位，資料裡的欄位是 ${e.message.slice(7)}`
   : e.name === 'TypeError' ? '瀏覽器讀不到，多半是伺服器不允許跨網站讀取' : `${e.name}: ${e.message}`;
 // load every city; succeed if at least one answers, and remember which failed
-let liveCities = [];
+let liveCities = [], dupCount = 0;
 async function loadLive(){
   const results = await Promise.allSettled(SOURCES.map(loadSource));
   const list = [], ok = [], bad = [];
   results.forEach((r, i) => { if (r.status === 'fulfilled') { list.push(...r.value); ok.push(SOURCES[i].city); } else bad.push(`${SOURCES[i].city}：${errText(r.reason)}`); });
+  // the map draws one marker per id, so keep one station per id or a marker and the card can disagree
+  const byKey = new Map(); for (const x of list) byKey.set(x.id, x);
+  dupCount = list.length - byKey.size;
+  list.length = 0; list.push(...byKey.values());
   partialErr = bad.join('；');
   if (!list.length) throw new Error(partialErr || 'empty');
   liveCities = ok;
@@ -651,7 +662,7 @@ function startGps(){
   let first = true;
   gpsWatch = navigator.geolocation.watchPosition(p => {
     gpsOn = true; st.you = {lat:p.coords.latitude, lng:p.coords.longitude};
-    if (first) { view.lat = st.you.lat; view.lng = st.you.lng; }
+    if (first || follow) { view.lat = st.you.lat; view.lng = st.you.lng; }
     followNearest(first); first = false;
     gpsAcc = Math.round(p.coords.accuracy);
     $('useGps').hidden = true;
@@ -677,7 +688,7 @@ function renderBadge(){
   const b = $('mapBadge'), chip = $('modeChip');
   if (mode === 'live') {
     chip.textContent = '即時資料'; chip.className = 'chip live';
-    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
+    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (dupCount ? `・有 ${dupCount} 筆重複站點，已合併` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
     $('dataNote').textContent = '車位數來自台北市、新北市政府開放資料，每分鐘更新。其他人的怒氣和討伐的路人仍是模擬的，多人統計要接後端資料庫才會是真的。';
   } else {
     chip.textContent = '示範資料'; chip.className = 'chip';
