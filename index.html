@@ -64,7 +64,6 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .mk{position:absolute;transform:translate(-50%,-50%);min-width:30px;height:30px;padding:0 7px;border-radius:15px;border:2px solid var(--surface);
   font-family:var(--f-num);font-weight:700;font-size:14px;line-height:26px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;color:var(--on-heat)}
 .mk.s0{background:var(--bad)} .mk.s1{background:var(--heat1);color:var(--on-heat1)} .mk.s2{background:var(--ok)}
-.mk.dot{min-width:12px;width:12px;height:12px;padding:0;font-size:0;border-width:1.5px}
 .mk.sel{z-index:4;outline:3px solid var(--ink);outline-offset:1px;transform:translate(-50%,-50%) scale(1.15)}
 .mk.sel::before{content:attr(data-name);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;
   font-family:var(--f-body);font-size:12px;font-weight:700;line-height:1.4;padding:2px 8px;border-radius:6px;background:var(--ink);color:var(--surface);pointer-events:none}
@@ -175,6 +174,14 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .stat b{display:block;font-family:var(--f-num);font-size:clamp(20px,5.5vw,26px);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
 .stat small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .explain{font-size:13px;color:var(--muted);margin:12px 0 0;max-width:62ch}
+.boot{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 94%,transparent);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.boot-card{display:grid;justify-items:center;gap:10px;text-align:center;max-width:320px}
+.boot-card b{font-family:var(--f-display);font-weight:900;font-size:18px}
+.boot-card p{margin:0;font-size:13px;color:var(--muted)}
+.spin{width:36px;height:36px;border-radius:50%;border:4px solid var(--track);border-top-color:var(--heat2);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dots{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .favs{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
 .favs button{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;text-align:left;background:var(--bg);border:1px solid transparent;border-radius:10px;padding:8px 10px;cursor:pointer}
 .favs button.cur{border-color:var(--ink)}
@@ -187,12 +194,20 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .label-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .label-row .label{margin:0}
 .rules{margin:8px 0 0;padding-left:1.2em;display:grid;gap:4px;font-size:14px;max-width:62ch}
-@media (prefers-reduced-motion: reduce){.shake{animation:none}.burst.show{animation-duration:.01s}.anger,.bar i{transition:none}.mk.raid::after{animation:none}}
+@media (prefers-reduced-motion: reduce){.spin{animation-duration:2.4s}.shake{animation:none}.burst.show{animation-duration:.01s}.anger,.bar i{transition:none}.mk.raid::after{animation:none}}
 </style>
 
+<div class="boot" id="boot" role="status" aria-live="polite">
+  <div class="boot-card">
+    <span class="spin" aria-hidden="true"></span>
+    <b>正在載入雙北的 YouBike 站點…</b>
+    <p id="bootNote">通常幾秒鐘就好</p>
+    <button class="ghost" id="bootSkip" hidden>先看示範資料</button>
+  </div>
+</div>
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v1.0</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v1.1</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -212,6 +227,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
         <div class="map" id="map">
           <div class="layer" id="layer">
             <div class="tiles" id="tiles"></div>
+            <canvas class="dots" id="dots" aria-hidden="true"></canvas>
             <svg id="overlay" aria-hidden="true"><circle class="fence" id="fence" cx="-99" cy="-99" r="0"></circle></svg>
             <div id="markers"></div>
             <div class="you" id="youDot" role="img" aria-label="你的位置，可拖曳"></div>
@@ -418,7 +434,7 @@ let combo = null, finTimer = 0, msgTimer = 0;
 function say(text, kind){ const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4500); }
 
 // ---------- map ----------
-const TILE = 256, mapEl = $('map');
+const TILE = 256, DOT_Z = 14, mapEl = $('map');
 const view = {lat:st.you.lat, lng:st.you.lng, z:15};
 function proj(lat, lng, z){ const s = TILE * 2 ** z, r = lat * Math.PI / 180; return {x:(lng + 180) / 360 * s, y:(1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * s}; }
 function unproj(x, y, z){ const s = TILE * 2 ** z, n = Math.PI - 2 * Math.PI * y / s; return {lat:180 / Math.PI * Math.atan(Math.sinh(n)), lng:x / s * 360 - 180}; }
@@ -449,9 +465,27 @@ function renderMap(){
   const mpp = 156543.03392 * Math.cos(s.lat * Math.PI / 180) / 2 ** z;
   const f = $('fence'); f.setAttribute('cx', sp.x); f.setAttribute('cy', sp.y); f.setAttribute('r', RADIUS / mpp);
 
-  // station markers (only those on screen)
-  const seen = new Set(), dots = z < 14, t = st.type;
-  for (const x of stations) {
+  // Zoomed out, stations are dots on one canvas (only the chosen one stays a marker);
+  // zoomed in, each station on screen is a numbered marker.
+  const seen = new Set(), dots = z < DOT_Z, t = st.type;
+  const cv2 = $('dots'), dpr = devicePixelRatio || 1;
+  if (cv2.width !== Math.round(W * dpr) || cv2.height !== Math.round(H * dpr)) { cv2.width = Math.round(W * dpr); cv2.height = Math.round(H * dpr); }
+  const g = cv2.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  if (dots) {
+    const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
+    const fill = [col('--bad'), col('--heat1'), col('--ok')], ring = col('--surface'), fav = col('--heat1');
+    const r = z >= 13 ? 5 : 3.5;
+    for (const x of stations) {
+      if (x.id === s.id) continue;
+      const p = toScreen(x.lat, x.lng, o);
+      if (p.x < -8 || p.y < -8 || p.x > W + 8 || p.y > H + 8) continue;
+      const a = avail(x, t);
+      g.beginPath(); g.arc(p.x, p.y, r, 0, 7);
+      g.fillStyle = fill[a === 0 ? 0 : a <= 3 ? 1 : 2]; g.fill();
+      g.lineWidth = isFav(x.id) ? 2 : 1; g.strokeStyle = isFav(x.id) ? fav : ring; g.stroke();
+    }
+  }
+  for (const x of dots ? [s] : stations) {
     const p = toScreen(x.lat, x.lng, o);
     if (p.x < -40 || p.y < -40 || p.x > W + 40 || p.y > H + 40) continue;
     seen.add(x.id);
@@ -463,7 +497,7 @@ function renderMap(){
       $('markers').appendChild(el); markerEls.set(x.id, el);
     }
     const a = avail(x, t), r = st.raids[k(x.id, t)];
-    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (dots && x.id !== s.id ? ' dot' : '') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && bossActive(x, t) ? ' raid' : '') + (isFav(x.id) ? ' fav' : '');
+    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && bossActive(x, t) ? ' raid' : '') + (isFav(x.id) ? ' fav' : '');
     el.textContent = a;
     if (x.id === s.id) el.dataset.name = x.name; else delete el.dataset.name;
     el.setAttribute('aria-label', `${x.name}，${t === 'rent' ? '可借' : '可還'} ${a}`);
@@ -477,6 +511,12 @@ function renderMap(){
   yd.setAttribute('aria-label', gpsOn ? '你的 GPS 位置' : '模擬位置，可拖曳');
 }
 
+// the station drawn closest to a screen point, within a finger's reach
+function dotAt(pt){
+  const o = origin(); let best = null, bd = 18;
+  for (const x of stations) { const p = toScreen(x.lat, x.lng, o), d = Math.hypot(p.x - pt.x, p.y - pt.y); if (d < bd) { bd = d; best = x; } }
+  return best;
+}
 // pan the map; drag the blue dot to "walk"
 // zoom one level, keeping the map point under (sx, sy) in place; defaults to the map centre
 // while following, the map keeps the GPS position centred; panning stops it, the ◎ button resumes it
@@ -550,6 +590,7 @@ const endDrag = e => {
   if (!drag) return;
   const wasYou = drag.you; drag = null; mapEl.classList.remove('dragging');
   if (e.type === 'pointerup' && t && t.id) { pickStation(t.id, false); return; }
+  if (e.type === 'pointerup' && t && view.z < DOT_Z) { const hit = dotAt(local(e)); if (hit) { pickStation(hit.id, false); return; } }
   if (wasYou) { save(); buildOptions(); renderStage(); }
 };
 mapEl.addEventListener('pointerup', endDrag); mapEl.addEventListener('pointercancel', endDrag);
@@ -1211,7 +1252,17 @@ $('resetBtn').addEventListener('click', resetAsk);
 buildOptions(); renderAll(); probeTiles();
 $('useGps').hidden = !('geolocation' in navigator);
 startGps();
-refresh(true); setInterval(refresh, REFRESH_MS); // keep retrying so a later success switches to live data
+// loading screen: stays up until the first load settles, offers the demo after 8 s
+const hideBoot = () => { const b = $('boot'); if (b) b.remove(); };
+setTimeout(() => { if ($('boot')) $('bootNote').textContent = '連線比較慢，再等一下…'; }, 4000);
+setTimeout(() => { if ($('boot')) $('bootSkip').hidden = false; }, 8000);
+$('bootSkip').addEventListener('click', hideBoot);
+refresh(true).then(ok => {
+  if (ok && gpsOn) { view.lat = st.you.lat; view.lng = st.you.lng; renderMap(); }
+  if (!ok) say('讀不到即時資料，先顯示示範站點', 'warn');
+  hideBoot();
+});
+setInterval(refresh, REFRESH_MS); // keep retrying so a later success switches to live data
 setInterval(() => { if (backend) { loadStats(cur().id, st.type, true); loadEvents(); } }, 30000);
 })();
 </script>

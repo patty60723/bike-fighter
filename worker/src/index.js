@@ -23,11 +23,12 @@ const NTPC_URL = page =>
 const SOURCES = [
   { city: '台北市', prefix: 'tp', load: async () => fetchRows(TP_URL) },
   { city: '新北市', prefix: 'nt', load: async () => {
-      let rows = [];
-      for (let page = 0; page < 6; page++) {
-        const part = await fetchRows(NTPC_URL(page));
-        rows = rows.concat(part);
-        if (part.length < 1000) break;
+      // the first two pages together cover New Taipei today; fetch them at once
+      const first = await Promise.all([fetchRows(NTPC_URL(0)), fetchRows(NTPC_URL(1))]);
+      let rows = first.flat();
+      for (let page = 2, last = first[1]; page < 6 && last.length === 1000; page++) {
+        last = await fetchRows(NTPC_URL(page));
+        rows = rows.concat(last);
       }
       return rows;
     } },
@@ -75,9 +76,14 @@ function parseRows(rows, prefix) {
   return [...out.values()];
 }
 
+const SNAPSHOT_MAX_AGE = 3 * 60_000; // older than this (cron stalled?) → ask the cities directly
 let memo = null; // per isolate; the upstream fetches are also cached by Cloudflare for 50 s
 async function loadStations(env, { fresh = false } = {}) {
   if (!fresh && memo && Date.now() - memo.updated < 30_000) return memo;
+  if (!fresh && !env.STATION_FIXTURE) {
+    const row = await env.DB.prepare('SELECT body, updated FROM snapshot WHERE id = 1').first();
+    if (row && Date.now() - row.updated < SNAPSHOT_MAX_AGE) return (memo = JSON.parse(row.body));
+  }
   let data;
   if (env.STATION_FIXTURE) {
     // local development only: a JSON array of stations in the output shape
@@ -206,6 +212,7 @@ async function getEvents(url, env, cors) {
 async function sweep(env) {
   const data = await loadStations(env, { fresh: true });
   if (!data.stations.length) return { opened: 0, closed: 0 };
+  await env.DB.prepare('INSERT OR REPLACE INTO snapshot (id, body, updated) VALUES (1, ?, ?)').bind(JSON.stringify(data), data.updated).run();
   const now = Date.now(), byId = new Map(data.stations.map(s => [s.id, s]));
   const open = (await env.DB.prepare('SELECT sid, type, name, since FROM empty_open').all()).results;
   const isOpen = new Set(open.map(o => `${o.sid}:${o.type}`));
