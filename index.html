@@ -538,14 +538,27 @@ $('walkHere').addEventListener('click', () => {
 });
 
 // ---------- live data ----------
+// cities name the same fields differently; take the first name present (any letter case)
+const RENT_KEYS = ['available_rent_bikes', 'sbi', 'sbi_quantity', 'available_bikes', 'availablerentbikes'];
+const RET_KEYS = ['available_return_bikes', 'bemp', 'available_spaces', 'availablereturnbikes'];
+function pick(x, names){
+  const keys = Object.keys(x);
+  for (const n of names) {
+    const k = keys.find(k => k.toLowerCase() === n);
+    if (k !== undefined && x[k] !== null && x[k] !== '') return +x[k];
+  }
+  return NaN;
+}
+// stations without bike/dock counts are dropped rather than shown as 0,
+// since a false 0 would start an empty-station boss
 function parseLive(arr, prefix){
   return arr.filter(x => x.act === undefined || String(x.act) === '1').map(x => ({
     id:prefix + x.sno,
     name:String(x.sna || '').replace(/^YouBike2\.0_/, ''),
     lat:+(x.latitude ?? x.lat), lng:+(x.longitude ?? x.lng),
-    rent:+(x.available_rent_bikes ?? x.sbi ?? 0), ret:+(x.available_return_bikes ?? x.bemp ?? 0),
+    rent:pick(x, RENT_KEYS), ret:pick(x, RET_KEYS),
     time:x.updateTime || x.mday || null, base:ZERO,
-  })).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat > 20);
+  })).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat > 20 && Number.isFinite(s.rent) && Number.isFinite(s.ret));
 }
 async function getJson(url){
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
@@ -561,10 +574,12 @@ async function loadSource(src){
   if (!src.paged) rows = await getJson(src.url());
   else for (let page = 0; page < 6; page++) { const part = await getJson(src.url(page)); rows = rows.concat(part); if (part.length < 1000) break; }
   const list = parseLive(rows, src.prefix);
+  if (!list.length && rows.length) throw new Error('fields:' + Object.keys(rows[0]).join(', '));
   if (!list.length) throw new Error('empty');
   return list;
 }
 const errText = e => e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.message) ? `伺服器回應 ${e.message}` : e.message === 'empty' ? '資料是空的'
+  : e.message.startsWith('fields:') ? `找不到車數欄位，資料裡的欄位是 ${e.message.slice(7)}`
   : e.name === 'TypeError' ? '瀏覽器讀不到，多半是伺服器不允許跨網站讀取' : `${e.name}: ${e.message}`;
 // load every city; succeed if at least one answers, and remember which failed
 let liveCities = [];
