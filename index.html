@@ -56,6 +56,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
   background-image:linear-gradient(var(--map-grid) 1px,transparent 1px),linear-gradient(90deg,var(--map-grid) 1px,transparent 1px);background-size:64px 64px;
   touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 .map.dragging{cursor:grabbing}
+.layer{position:absolute;inset:0;transform-origin:0 0}
 .tiles{position:absolute;inset:0;filter:var(--tile-filter)}
 .tiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
 .map svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -180,7 +181,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.8</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.9</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -198,10 +199,12 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
           </div>
         </div>
         <div class="map" id="map">
-          <div class="tiles" id="tiles"></div>
-          <svg id="overlay" aria-hidden="true"><circle class="fence" id="fence" cx="-99" cy="-99" r="0"></circle></svg>
-          <div id="markers"></div>
-          <div class="you" id="youDot" role="img" aria-label="你的位置，可拖曳"></div>
+          <div class="layer" id="layer">
+            <div class="tiles" id="tiles"></div>
+            <svg id="overlay" aria-hidden="true"><circle class="fence" id="fence" cx="-99" cy="-99" r="0"></circle></svg>
+            <div id="markers"></div>
+            <div class="you" id="youDot" role="img" aria-label="你的位置，可拖曳"></div>
+          </div>
           <div class="map-ctrl">
             <button id="zIn" aria-label="放大">＋</button>
             <button id="zOut" aria-label="縮小">－</button>
@@ -433,7 +436,8 @@ function renderMap(){
     let el = markerEls.get(x.id);
     if (!el) {
       el = document.createElement('button'); el.type = 'button';
-      el.addEventListener('click', () => pickStation(x.id, false));
+      el.dataset.id = x.id;
+      el.addEventListener('click', e => { if (e.detail === 0) pickStation(x.id, false); });
       $('markers').appendChild(el); markerEls.set(x.id, el);
     }
     const a = avail(x, t), r = st.raids[k(x.id, t)];
@@ -465,42 +469,65 @@ function zoom(d, sx, sy){
   renderMap();
 }
 const local = e => { const r = mapEl.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; };
+// panning redraws at most once per frame
+let rafPending = false;
+const scheduleMap = () => { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); };
 
-// one finger/mouse pans (or drags the blue dot); two fingers pinch-zoom
-let drag = null, pinch = null;
-const pts = new Map();
+// One finger/mouse pans (or drags the blue dot); a short tap on a marker picks it.
+// Two fingers pinch: the layer is scaled live with CSS, and the zoom level is applied when the fingers lift.
+let drag = null, pinch = null, press = null;
+const pts = new Map(), layerEl = $('layer');
 const pinchInfo = () => { const [a, b] = [...pts.values()]; return {d:Math.hypot(a.x - b.x, a.y - b.y), x:(a.x + b.x) / 2, y:(a.y + b.y) / 2}; };
 mapEl.addEventListener('pointerdown', e => {
-  if (e.target.closest('.mk, .map-ctrl, .map-badge')) return;
+  if (e.target.closest('.map-ctrl')) return;
   pts.set(e.pointerId, local(e));
   try { mapEl.setPointerCapture(e.pointerId); } catch(_) {}
-  if (pts.size === 2) { if (drag && drag.you) { save(); buildOptions(); } drag = null; mapEl.classList.remove('dragging'); pinch = {d0:pinchInfo().d}; return; }
+  if (pts.size === 2) {
+    if (drag && drag.you) { save(); buildOptions(); }
+    drag = null; press = null; mapEl.classList.remove('dragging');
+    const p = pinchInfo(); pinch = {d0:p.d, x0:p.x, y0:p.y, scale:1, x:p.x, y:p.y};
+    return;
+  }
   if (pts.size > 2) return;
+  const mk = e.target.closest('.mk');
+  press = {x:e.clientX, y:e.clientY, id:mk ? mk.dataset.id : null};
   const onYou = e.target === $('youDot');
   if (onYou && gpsOn) { say('GPS 定位中，藍點跟著你的實際位置，不能拖曳'); return; }
   drag = {you:onYou, x:e.clientX, y:e.clientY, c:proj(view.lat, view.lng, view.z)};
-  if (!onYou) mapEl.classList.add('dragging');
 });
 mapEl.addEventListener('pointermove', e => {
   if (!pts.has(e.pointerId)) return;
   pts.set(e.pointerId, local(e));
   if (pinch && pts.size === 2) {
-    const p = pinchInfo(), ratio = p.d / pinch.d0;
-    if (ratio > 1.4) { zoom(1, p.x, p.y); pinch.d0 = p.d; }
-    else if (ratio < 0.7) { zoom(-1, p.x, p.y); pinch.d0 = p.d; }
+    const p = pinchInfo();
+    pinch.scale = Math.max(1 / 8, Math.min(8, p.d / pinch.d0)); pinch.x = p.x; pinch.y = p.y;
+    layerEl.style.transform = `translate(${p.x - pinch.x0 * pinch.scale}px, ${p.y - pinch.y0 * pinch.scale}px) scale(${pinch.scale})`;
     return;
   }
   if (!drag) return;
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) press = null;
+  if (press) return; // still a tap until the finger moves
   const o = origin(), l = local(e);
   if (drag.you) { st.you = unproj(o.x + l.x, o.y + l.y, view.z); renderStage(); }
-  else { follow = false; const c = unproj(drag.c.x - (e.clientX - drag.x), drag.c.y - (e.clientY - drag.y), view.z); view.lat = c.lat; view.lng = c.lng; }
-  renderMap();
+  else { follow = false; mapEl.classList.add('dragging'); const c = unproj(drag.c.x - (e.clientX - drag.x), drag.c.y - (e.clientY - drag.y), view.z); view.lat = c.lat; view.lng = c.lng; }
+  scheduleMap();
 });
+function endPinch(){
+  const p = pinch; pinch = null; layerEl.style.transform = '';
+  const lv2 = Math.log2(p.scale), dz = lv2 >= 0.3 ? Math.max(1, Math.round(lv2)) : lv2 <= -0.3 ? Math.min(-1, Math.round(lv2)) : 0;
+  if (dz) zoom(dz, p.x0, p.y0);
+  // then shift so the pinched spot ends up under the fingers
+  const c = proj(view.lat, view.lng, view.z), n = unproj(c.x - (p.x - p.x0), c.y - (p.y - p.y0), view.z);
+  view.lat = n.lat; view.lng = n.lng; follow = false;
+  renderMap();
+}
 const endDrag = e => {
   pts.delete(e.pointerId);
-  if (pts.size < 2) pinch = null;
+  if (pinch) { if (pts.size < 2) endPinch(); return; }
+  const t = press; press = null;
   if (!drag) return;
   const wasYou = drag.you; drag = null; mapEl.classList.remove('dragging');
+  if (e.type === 'pointerup' && t && t.id) { pickStation(t.id, false); return; }
   if (wasYou) { save(); buildOptions(); renderStage(); }
 };
 mapEl.addEventListener('pointerup', endDrag); mapEl.addEventListener('pointercancel', endDrag);
@@ -517,13 +544,19 @@ mapEl.addEventListener('wheel', e => {
 mapEl.addEventListener('dblclick', e => { if (e.target.closest('.mk, .map-ctrl, .you')) return; const l = local(e); zoom(1, l.x, l.y); });
 $('zIn').addEventListener('click', () => zoom(1));
 $('zOut').addEventListener('click', () => zoom(-1));
-$('toMe').addEventListener('click', () => { follow = true; view.lat = st.you.lat; view.lng = st.you.lng; renderMap(); });
+$('toMe').addEventListener('click', () => {
+  follow = true; view.lat = st.you.lat; view.lng = st.you.lng;
+  if (gpsOn) { manualFrom = null; followNearest(true); save(); buildOptions(); renderAll(); } else renderMap();
+});
 addEventListener('resize', () => { renderMap(); sizeCanvas(); });
 
 // ---------- station picking ----------
+// a station the user picks stays chosen until they walk 200 m away or press ◎
+let manualFrom = null;
 function pickStation(id, center){
   if (combo) { say('這批還沒送出，送出後才能換站', 'warn'); return; }
   st.station = id; const s = cur();
+  manualFrom = {...st.you}; follow = false;
   if (avail(s, 'rent') === 0) st.type = 'rent'; else if (avail(s, 'ret') === 0) st.type = 'ret';
   if (center) { view.lat = s.lat; view.lng = s.lng; }
   save(); buildOptions(); renderAll();
@@ -626,7 +659,7 @@ async function refresh(first){
     for (const key of Object.keys(st.raids)) if (key.startsWith('d')) delete st.raids[key];
     if (!byId(st.station)) st.station = nearest()[0].id;
   }
-  followNearest(true);
+  followNearest(wasDemo);
   // live boss events end as soon as the station has bikes/docks again
   for (const r of Object.values(st.raids)) {
     if (r.status !== 'live') continue;
@@ -640,6 +673,8 @@ async function refresh(first){
 // or still within reach of a station they picked by hand
 function followNearest(force){
   if (!gpsOn || combo) return;
+  if (manualFrom && haversine(st.you, manualFrom) < 200) return;
+  manualFrom = null;
   const n = nearest()[0];
   if (!n || n.id === st.station) return;
   if (force || distTo(cur()) > RADIUS) { st.station = n.id; if (avail(n, 'rent') === 0) st.type = 'rent'; else if (avail(n, 'ret') === 0) st.type = 'ret'; }
