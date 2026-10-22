@@ -32,7 +32,7 @@
 ## 第一次部署
 
 1. **建立資料庫**：Cloudflare 後台 → **Storage & Databases** → **D1** → **Create database**，名稱填 `bike-fighter`。
-2. 複製資料庫的 **Database ID**，填進 `wrangler.toml` 的 `database_id`（或交給 Claude 代填）。
+2. 複製資料庫的 **Database ID**，填進 `wrangler.toml` 的 `database_id`（已填好）。
 3. **連接 GitHub 自動部署**：Workers & Pages → `bike-fighter-api` → **Settings** → **Build** → 連接 repo `patty60723/bike-fighter`：
    - Branch：`main`
    - Root directory（根目錄）：`worker`

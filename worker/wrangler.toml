@@ -9,7 +9,7 @@ ALLOWED_ORIGINS = "https://patty60723.github.io"
 [[d1_databases]]
 binding = "DB"
 database_name = "bike-fighter"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "df8853c9-11e0-4098-bac9-7634cb687ac5"
 migrations_dir = "migrations"
 
 # open and close empty-station spells every minute
