@@ -312,7 +312,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 // New Taipei serves the same fields in pages of up to 1,000 stations.
 // New Taipei's server doesn't allow cross-site reads, so it goes through the relay in proxy/.
 // Set PROXY_URL to the deployed relay (no trailing slash); empty = try the city server directly.
-const PROXY_URL = '';
+const PROXY_URL = 'https://bike-fighter-api.awesome61004.workers.dev';
 const NTPC_URL = page => `https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json?page=${page}&size=1000`;
 const SOURCES = [
   {city:'台北市', prefix:'tp', url:() => 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json'},

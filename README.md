@@ -34,7 +34,7 @@ YouBike 站借不到車、還不了車的時候，按按鈕發洩怒氣；這些
 
 ## 已知限制
 
-- 台北市即時 API 已在 GitHub Pages 上實測可讀。新北市的伺服器不允許跨網站讀取，要先部署 [proxy/](proxy/) 裡的轉發服務，再把網址填進 `index.html` 的 `PROXY_URL`。
+- 台北市即時 API 已在 GitHub Pages 上實測可讀。新北市的伺服器不允許跨網站讀取，所以改經由 [proxy/](proxy/) 裡的轉發服務（Cloudflare Worker `bike-fighter-api`）讀取。
 - 其他人的怒氣、討伐中的路人、全站累積數字都是模擬的，要接後端資料庫才會是真的。
 - 你的紀錄只存在自己瀏覽器的 localStorage。
 
