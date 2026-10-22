@@ -66,6 +66,7 @@ function parseRows(rows, prefix) {
     const s = {
       id: prefix + x.sno,
       name: String(x.sna || '').replace(/^YouBike2\.0_/, ''),
+      area: String(x.sarea || ''),
       lat: Number(x.latitude ?? x.lat), lng: Number(x.longitude ?? x.lng),
       rent: pick(x, RENT_KEYS), ret: pick(x, RET_KEYS),
       time: parseTime(x.srcUpdateTime || x.infoTime || x.updateTime || x.mday),
