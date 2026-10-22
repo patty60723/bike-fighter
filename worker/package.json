@@ -1,0 +1,14 @@
+{
+  "name": "bike-fighter-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "migrate:local": "wrangler d1 migrations apply DB --local",
+    "migrate": "wrangler d1 migrations apply DB --remote",
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.148.0"
+  }
+}

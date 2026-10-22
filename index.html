@@ -175,13 +175,24 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .stat b{display:block;font-family:var(--f-num);font-size:clamp(20px,5.5vw,26px);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
 .stat small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .explain{font-size:13px;color:var(--muted);margin:12px 0 0;max-width:62ch}
+.favs{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.favs button{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;text-align:left;background:var(--bg);border:1px solid transparent;border-radius:10px;padding:8px 10px;cursor:pointer}
+.favs button.cur{border-color:var(--ink)}
+.favs .nm{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.favs .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.cnt{font-family:var(--f-num);font-weight:700;font-size:15px;min-width:54px;text-align:center;border-radius:8px;padding:2px 6px;color:var(--on-heat);font-variant-numeric:tabular-nums}
+.cnt small{font-family:var(--f-body);font-weight:500;font-size:11px;margin-right:3px}
+.cnt.s0{background:var(--bad)} .cnt.s1{background:var(--heat1);color:var(--on-heat1)} .cnt.s2{background:var(--ok)} .cnt.na{background:var(--track);color:var(--muted)}
+.mk.fav{box-shadow:0 0 0 3px var(--heat1),0 2px 6px rgba(0,0,0,.25)}
+.label-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.label-row .label{margin:0}
 .rules{margin:8px 0 0;padding-left:1.2em;display:grid;gap:4px;font-size:14px;max-width:62ch}
 @media (prefers-reduced-motion: reduce){.shake{animation:none}.burst.show{animation-duration:.01s}.anger,.bar i{transition:none}.mk.raid::after{animation:none}}
 </style>
 
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.9</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v1.0</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -221,10 +232,15 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
         </div>
       </section>
 
+      <section class="panel" aria-label="常用站點">
+        <div class="unitrow"><h2 class="ttl">常用站點</h2><span class="note">最多 10 站，點一下就選中</span></div>
+        <ul class="favs" id="favList"></ul>
+      </section>
+
       <section class="panel" aria-label="發洩怒氣">
         <div class="sign">
           <div>
-            <p class="label">選中的站點（依距離排序）</p>
+            <div class="label-row"><p class="label">選中的站點</p><button class="ghost" id="favBtn" aria-pressed="false">☆ 加入常用</button></div>
             <select id="stationSel" aria-label="選擇站點"></select>
           </div>
           <div class="avail">
@@ -292,7 +308,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 
       <section class="panel" aria-label="需求紀錄">
         <h2 class="ttl">需求紀錄</h2>
-        <p class="note" style="margin-top:4px">每場討伐結束後自動留下一筆，可以整理成陳情或報表。</p>
+        <p class="note" style="margin-top:4px" id="demandNote">每場討伐結束後自動留下一筆，可以整理成陳情或報表。</p>
         <ul class="hist" id="demand"></ul>
       </section>
 
@@ -316,13 +332,13 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 // ---------- config ----------
 // YouBike 2.0 live availability from each city's open data (about 1-minute refresh).
 // New Taipei serves the same fields in pages of up to 1,000 stations.
-// New Taipei's server doesn't allow cross-site reads, so it goes through the relay in proxy/.
-// Set PROXY_URL to the deployed relay (no trailing slash); empty = try the city server directly.
-const PROXY_URL = 'https://bike-fighter-api.awesome61004.workers.dev';
+// The API in worker/ merges both cities, checks and records anger, and tracks empty stations.
+// When it can't be reached, the page reads Taipei directly and New Taipei through the API's /ntpc relay.
+const API_BASE = 'https://bike-fighter-api.awesome61004.workers.dev';
 const NTPC_URL = page => `https://data.ntpc.gov.tw/api/datasets/010e5b15-3823-4b20-b401-b1cf000550c5/json?page=${page}&size=1000`;
 const SOURCES = [
   {city:'台北市', prefix:'tp', url:() => 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json'},
-  {city:'新北市', prefix:'nt', url:page => PROXY_URL ? `${PROXY_URL}/ntpc?page=${page}` : NTPC_URL(page), paged:true},
+  {city:'新北市', prefix:'nt', url:page => API_BASE ? `${API_BASE}/ntpc?page=${page}` : NTPC_URL(page), paged:true},
 ];
 const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const REFRESH_MS = 60000;
@@ -372,14 +388,20 @@ function demoBase(s){
 const ZERO = {rent:{ppl:0, sends:0, lv:0, clicks:0}, ret:{ppl:0, sends:0, lv:0, clicks:0}};
 
 // ---------- state ----------
-const fresh = () => ({station:null, type:'rent', unit:'level', sound:true, you:null, speed:1, coolUntil:0, sends:{}, raids:{}, restocked:{}, demand:[]});
+const fresh = () => ({station:null, type:'rent', unit:'level', sound:true, you:null, speed:1, coolUntil:0, sends:{}, raids:{}, restocked:{}, demand:[], favs:[]});
 let st = fresh();
 try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) st = Object.assign(fresh(), s); } catch(e) {}
 // a boss only lives 10 minutes; drop ones left running from an earlier visit
 for (const [key, r] of Object.entries(st.raids)) if (r.status === 'live' && Date.now() - (r.startedAt || 0) > RAID_MS) delete st.raids[key];
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e) {} };
+// an anonymous id per browser, so the server can count people without accounts
+const DEVICE = (() => {
+  const make = () => (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''));
+  try { let d = localStorage.getItem('bike-fighter-device'); if (!d) { d = make(); localStorage.setItem('bike-fighter-device', d); } return d; } catch(e) { return make(); }
+})();
 
 let mode = 'demo', dataTime = null, gpsOn = false, tilesOn = false, liveErr = '', partialErr = '';
+let backend = false; // true while the API answers; then stats, the boss and the demand log are real
 let stations = DEMO.map(s => ({...s, base:demoBase(s)}));
 if (!st.you) st.you = {...DEMO_YOU};
 const byId = id => stations.find(s => s.id === id);
@@ -441,7 +463,7 @@ function renderMap(){
       $('markers').appendChild(el); markerEls.set(x.id, el);
     }
     const a = avail(x, t), r = st.raids[k(x.id, t)];
-    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (dots && x.id !== s.id ? ' dot' : '') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && r && r.status === 'live' ? ' raid' : '');
+    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (dots && x.id !== s.id ? ' dot' : '') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && bossActive(x, t) ? ' raid' : '') + (isFav(x.id) ? ' fav' : '');
     el.textContent = a;
     if (x.id === s.id) el.dataset.name = x.name; else delete el.dataset.name;
     el.setAttribute('aria-label', `${x.name}，${t === 'rent' ? '可借' : '可還'} ${a}`);
@@ -562,12 +584,49 @@ function pickStation(id, center){
   save(); buildOptions(); renderAll();
 }
 const sel = $('stationSel');
+const distText = d => d < 1000 ? `${Math.round(d)} 公尺` : `${(d / 1000).toFixed(1)} 公里`;
+// the list: favourites first, then the 25 nearest
 function buildOptions(){
-  const list = nearest().slice(0, 25), s = cur();
-  if (!list.includes(s)) list.unshift(s);
+  const s = cur(), favs = st.favs.map(f => byId(f.id)).filter(Boolean);
+  const near = nearest().filter(x => !favs.includes(x)).slice(0, 25);
+  if (!favs.includes(s) && !near.includes(s)) near.unshift(s);
   sel.innerHTML = '';
-  list.forEach(x => { const o = document.createElement('option'); o.value = x.id; const d = distTo(x); o.textContent = `${x.name}・${d < 1000 ? Math.round(d) + ' 公尺' : (d / 1000).toFixed(1) + ' 公里'}`; sel.appendChild(o); });
+  const group = (label, list) => {
+    if (!list.length) return;
+    const g = document.createElement('optgroup'); g.label = label;
+    list.forEach(x => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.name}・${distText(distTo(x))}`; g.appendChild(o); });
+    sel.appendChild(g);
+  };
+  group('常用站點', favs); group('附近站點', near);
   sel.value = s.id;
+}
+// favourites are kept on this phone; syncing them across devices would need accounts
+const isFav = id => st.favs.some(f => f.id === id);
+function toggleFav(){
+  const s = cur();
+  if (isFav(s.id)) st.favs = st.favs.filter(f => f.id !== s.id);
+  else if (st.favs.length >= 10) return say('常用站點最多 10 站，先移除一站再加', 'warn');
+  else st.favs.push({id:s.id, name:s.name});
+  save(); buildOptions(); renderAll();
+}
+$('favBtn').addEventListener('click', toggleFav);
+const cntChip = (label, n) => `<span class="cnt ${n == null ? 'na' : n === 0 ? 's0' : n <= 3 ? 's1' : 's2'}"><small>${label}</small>${n ?? '–'}</span>`;
+function renderFavs(){
+  const ul = $('favList'), s = cur(), on = isFav(s.id);
+  $('favBtn').textContent = on ? '★ 已加入常用' : '☆ 加入常用';
+  $('favBtn').setAttribute('aria-pressed', on);
+  ul.innerHTML = '';
+  if (!st.favs.length) { ul.innerHTML = '<li><span class="empty">按選中站點旁的「☆ 加入常用」，常用的站會列在這裡，一打開就看得到即時車數。</span></li>'; return; }
+  st.favs.forEach(f => {
+    const x = byId(f.id), li = document.createElement('li'), b = document.createElement('button');
+    if (x && x.id === s.id) b.className = 'cur';
+    b.innerHTML = `<span class="nm"></span>${cntChip('借', x ? avail(x, 'rent') : null)}${cntChip('還', x ? avail(x, 'ret') : null)}`;
+    b.querySelector('.nm').textContent = f.name;
+    const sub = document.createElement('small'); sub.textContent = x ? distText(distTo(x)) : (mode === 'live' ? '目前讀不到這站的資料' : '切換到即時資料後才會顯示');
+    b.querySelector('.nm').appendChild(sub);
+    b.addEventListener('click', () => { if (x) pickStation(x.id, true); else say('目前讀不到這站的資料'); });
+    li.appendChild(b); ul.appendChild(li);
+  });
 }
 sel.addEventListener('change', () => pickStation(sel.value, true));
 [$('tRent'), $('tRet')].forEach(b => b.addEventListener('click', () => { if (combo) return say('這批還沒送出，送出後才能切換', 'warn'); st.type = b.dataset.type; save(); renderAll(); }));
@@ -629,7 +688,21 @@ const errText = e => e.name === 'AbortError' ? '連線逾時' : /^\d+$/.test(e.m
   : e.name === 'TypeError' ? '瀏覽器讀不到，多半是伺服器不允許跨網站讀取' : `${e.name}: ${e.message}`;
 // load every city; succeed if at least one answers, and remember which failed
 let liveCities = [], dupCount = 0;
+async function loadFromApi(){
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const res = await fetch(`${API_BASE}/stations`, {signal:ctl.signal, cache:'no-store'});
+    if (!res.ok) throw new Error(res.status);
+    const d = await res.json();
+    if (!d.ok || !d.stations?.length) throw new Error('empty');
+    liveCities = d.cities; partialErr = d.errors.join('；'); dupCount = 0;
+    return d.stations.map(x => ({...x, base:ZERO}));
+  } finally { clearTimeout(timer); }
+}
 async function loadLive(){
+  if (API_BASE) {
+    try { const list = await loadFromApi(); backend = true; return list; } catch(e) { backend = false; }
+  }
   const results = await Promise.allSettled(SOURCES.map(loadSource));
   const list = [], ok = [], bad = [];
   results.forEach((r, i) => { if (r.status === 'fulfilled') { list.push(...r.value); ok.push(SOURCES[i].city); } else bad.push(`${SOURCES[i].city}：${errText(r.reason)}`); });
@@ -722,9 +795,11 @@ function probeTiles(){
 function renderBadge(){
   const b = $('mapBadge'), chip = $('modeChip');
   if (mode === 'live') {
-    chip.textContent = '即時資料'; chip.className = 'chip live';
+    chip.textContent = backend ? '即時資料・已連線' : '即時資料・離線'; chip.className = 'chip live';
     b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (dupCount ? `・有 ${dupCount} 筆重複站點，已合併` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
-    $('dataNote').textContent = '車位數來自台北市、新北市政府開放資料，每分鐘更新。其他人的怒氣和討伐的路人仍是模擬的，多人統計要接後端資料庫才會是真的。';
+    $('dataNote').textContent = backend
+      ? '車位數來自台北市、新北市政府開放資料，每分鐘更新。怒氣、受影響人次和空站魔王的人數都是真實資料：伺服器會再檢查一次距離、冷卻、手速和當下車位，才記錄下來。'
+      : '車位數來自台北市、新北市政府開放資料，每分鐘更新。目前連不到伺服器，其他人的怒氣和討伐的路人是模擬的。';
   } else {
     chip.textContent = '示範資料'; chip.className = 'chip';
     b.textContent = (liveErr ? `讀不到即時資料（${liveErr}），改用示範站點` : '示範站點') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '・地圖圖磚也載不到，改用空白底圖');
@@ -738,7 +813,7 @@ function tap(){
   if (!combo) {
     if (coolLeft()) { say(`冷卻中，還要 ${Math.ceil(coolLeft() / 1000)} 秒才能發下一批`, 'warn'); buzz(30); return; }
     if (!inRange()) { say(`你離站點 ${Math.round(distTo(cur()))} 公尺，要回到 ${RADIUS} 公尺內才能開始新的一批`, 'warn'); buzz(30); return; }
-    combo = {n:0, sid:cur().id, type:st.type, last:0};
+    combo = {n:0, sid:cur().id, type:st.type, last:0, start:performance.now()};
   } else if (performance.now() - combo.last < MIN_GAP) return; // faster than a human finger: ignore
   const before = lv(combo.n);
   combo.n++; combo.last = performance.now();
@@ -753,13 +828,15 @@ function finalize(){
   const s = byId(c.sid);
   if (c.n < 2 || !s) { say('只按 1 下算誤觸，這批沒有送出'); renderAll(); return; }
   const l = lv(c.n), counted = avail(s, c.type) === 0;
-  mySends(c.sid, c.type).unshift({t:Date.now(), n:c.n, l, counted});
+  const entry = {t:Date.now(), n:c.n, l, counted, status:backend ? 'sending' : 'local'};
+  mySends(c.sid, c.type).unshift(entry);
   st.coolUntil = Date.now() + COOLDOWN;
-  const r = st.raids[k(c.sid, c.type)];
+  sendAnger(entry, c);
+  const r = backend ? null : st.raids[k(c.sid, c.type)];
   if (counted && r && r.status === 'live') { r.you = r.you ? {n:Math.max(r.you.n, c.n), l:Math.max(r.you.l, l), sends:r.you.sends + 1} : {n:c.n, l, sends:1}; checkWin(r); }
   save();
   const left = !inRange();
-  say(`已送出 Lv.${l}（${fmt(c.n)} 下）` + (counted ? '' : '，這站當下有車，不計入需求統計') + (left ? '。你已離開站點，下一批要回去才能發' : ''), left ? 'warn' : 'good');
+  say(`已送出 Lv.${l}（${fmt(c.n)} 下）` + (counted ? '' : `，這站當下有${c.type === 'rent' ? '車' : '位'}，不計入需求統計`) + (left ? '。你已離開站點，下一批要回去才能發' : ''), left ? 'warn' : 'good');
   renderAll();
 }
 function tickTimer(){
@@ -768,6 +845,60 @@ function tickTimer(){
   $('timerBar').style.width = (left / IDLE * 100) + '%';
   $('timerTxt').textContent = `${(left / 1000).toFixed(1)} 秒內繼續按會接續這批`;
   if (left > 0) requestAnimationFrame(tickTimer);
+}
+
+// ---------- server stats ----------
+const stats = new Map(); // 'sid:type' -> {at, data}
+let events = null;
+async function api(path, opts){
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const res = await fetch(API_BASE + path, {...opts, signal:ctl.signal, cache:'no-store'});
+    const body = await res.json().catch(() => ({}));
+    return {status:res.status, body};
+  } finally { clearTimeout(timer); }
+}
+const statsPending = new Set();
+let eventsPending = false;
+async function loadStats(sid, t, force){
+  const key = k(sid, t), have = stats.get(key);
+  if (!backend || statsPending.has(key) || (!force && have && Date.now() - have.at < 20000)) return;
+  statsPending.add(key);
+  try {
+    const {body} = await api(`/stats?sid=${encodeURIComponent(sid)}&type=${t}&device=${DEVICE}`);
+    if (body.ok) { stats.set(key, {at:Date.now(), data:body}); if (cur().id === sid && st.type === t) renderAll(); }
+  } catch(e) {}
+  finally { statsPending.delete(key); }
+}
+async function loadEvents(){
+  if (!backend || eventsPending) return;
+  eventsPending = true;
+  try { const {body} = await api('/events?limit=8'); events = body.ok ? body.events : (events || []); }
+  catch(e) { events = events || []; }
+  finally { eventsPending = false; }
+  renderAll();
+}
+const statsFor = (sid, t) => stats.get(k(sid, t))?.data || null;
+function bossActive(x, t){
+  if (backend) return !!statsFor(x.id, t)?.spell;
+  const r = st.raids[k(x.id, t)]; return !!(r && r.status === 'live');
+}
+// the server is the judge: it re-checks distance, cooldown, tap speed and whether the station is empty
+async function sendAnger(entry, c){
+  if (!backend) return;
+  if (!gpsOn) { entry.status = 'local'; entry.reason = '模擬位置不會送到伺服器'; save(); renderAll(); return; }
+  entry.status = 'sending'; save();
+  try {
+    const {status, body} = await api('/anger', {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({device:DEVICE, sid:c.sid, type:c.type, clicks:c.n, ms:Math.round(c.last - c.start), lat:st.you.lat, lng:st.you.lng, acc:gpsAcc})});
+    if (body.ok) { entry.status = 'sent'; entry.counted = body.counted; }
+    else {
+      entry.status = 'rejected'; entry.counted = false; entry.reason = body.message || `伺服器回應 ${status}`;
+      if (body.error === 'cooldown' && body.retryIn) st.coolUntil = Date.now() + body.retryIn * 1000;
+      say(`伺服器沒有接受這批：${entry.reason}`, 'warn');
+    }
+  } catch(e) { entry.status = 'failed'; entry.counted = false; entry.reason = '連線失敗'; }
+  save(); loadStats(c.sid, c.type, true); renderAll();
 }
 
 // ---------- boss raid ----------
@@ -788,6 +919,7 @@ let lastTick = performance.now();
 setInterval(() => {
   const now = performance.now(), dt = (now - lastTick) * st.speed; lastTick = now;
   if (!combo && st.coolUntil && Date.now() < st.coolUntil + 500) renderStage();
+  if (backend) { const c = $('bClock'); if (c && c.dataset.since) c.textContent = mmss(Date.now() - +c.dataset.since); return; }
   const s = cur(), r = st.raids[k(s.id, st.type)];
   if (!r || r.status !== 'live') return;
   const wasDefeated = r.defeated;
@@ -817,8 +949,30 @@ function updateLive(r){
   el('bYou').innerHTML = youLine(r);
   el('bJoin').innerHTML = chipsFor(r) || '<span>還沒有人參戰</span>';
 }
+function renderBossLive(s, t, p){
+  const data = statsFor(s.id, t), what = t === 'rent' ? '空站魔王' : '滿站魔王', a = avail(s, t);
+  const spell = data?.spell, boss = data?.boss;
+  if (!spell) {
+    p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
+      <p class="explain">${a === 0 ? `${esc(s.name)} 剛變成 0 ${t === 'rent' ? '輛' : '位'}，伺服器每分鐘確認一次，${what}很快就會出現。現在送出的怒氣一樣會算進去。`
+        : `${esc(s.name)} 目前${t === 'rent' ? `有 ${a} 輛車可借` : `有 ${a} 個空位可還`}，沒有${what}。魔王只會在即時資料顯示 0 ${t === 'rent' ? '輛' : '位'}時出現。`}</p>`;
+    return;
+  }
+  const me = boss.fighters.find(f => f.me), pct = Math.min(100, boss.people / boss.target * 100);
+  const chips = boss.fighters.map(f => `<span class="${f.me ? 'me' : ''}">${f.me ? '你' : '玩家'} Lv.${f.lv}</span>`).join('');
+  p.innerHTML = `<div class="boss-head"><h2 class="ttl">${what}出現・${typeName(t)}</h2><span class="clock" id="bClock" data-since="${spell.since}" aria-label="已持續時間">${mmss(Date.now() - spell.since)}</span></div>
+    <div class="hp">
+      <div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <div class="hp-row"><span>${boss.defeated ? '已打倒！' : `最近 ${boss.windowMin} 分鐘有 ${boss.target} 人在現場送出怒氣就能打倒`}</span><span><b>${boss.people}</b> / ${boss.target} 人</span></div>
+    </div>
+    <div class="you-box">${me ? `你已參戰，最高 <b>Lv.${me.lv}</b>${boss.fighters[0]?.me ? '，目前是最高等級' : ''}` : '在站點送出一批 Lv.1 以上的怒氣，就算參戰。人數決定勝負，等級只影響排名和特效。'}</div>
+    <div class="joiners" aria-label="參戰者">${chips || '<span>最近 10 分鐘還沒有人參戰</span>'}</div>
+    <p class="note" style="margin-top:8px">${t === 'rent' ? '空站' : '滿站'}已經持續 ${mmss(Date.now() - spell.since)}，這段時間共有 ${spell.people} 人在現場${typeName(t)}。都是真實資料，即時車位一恢復，魔王就撤退。</p>`;
+}
 function renderBoss(){
-  const s = cur(), t = st.type, p = $('bossPanel'), r = raidFor(s, t);
+  const s = cur(), t = st.type, p = $('bossPanel');
+  if (backend) return renderBossLive(s, t, p);
+  const r = raidFor(s, t);
   const what = t === 'rent' ? '空站魔王' : '滿站魔王', back = t === 'rent' ? '有車' : '有位';
   if (!r) {
     p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
@@ -914,29 +1068,48 @@ function renderAll(){
   if (!list.length) h.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">在這站還沒送出過。連按幾下再停手 3 秒，就會出現在這裡。</span></li>';
   list.slice(0, 10).forEach(e => {
     const li = document.createElement('li');
-    li.innerHTML = `<time>${hhmm(e.t)}</time><span class="v">${raw ? fmt(e.n) + ' 下' : 'Lv.' + e.l}<small>${raw ? 'Lv.' + e.l : fmt(e.n) + ' 下'}</small></span><span class="tag ${e.counted ? 'in' : 'no'}">${e.counted ? '計入需求' : '當下有車，未計入'}</span>`;
+    const tag = e.status === 'sending' ? ['no', '傳送中…'] : e.status === 'rejected' ? ['no', `未接受：${e.reason}`] : e.status === 'failed' ? ['no', '連線失敗，沒送出']
+      : e.counted ? ['in', e.status === 'sent' ? '計入需求' : '計入（只在這支手機）'] : ['no', e.reason || `當下有${t === 'rent' ? '車' : '位'}，未計入`];
+    li.innerHTML = `<time>${hhmm(e.t)}</time><span class="v">${raw ? fmt(e.n) + ' 下' : 'Lv.' + e.l}<small>${raw ? 'Lv.' + e.l : fmt(e.n) + ' 下'}</small></span><span class="tag ${tag[0]}"></span>`;
+    li.querySelector('.tag').textContent = tag[1];
     h.appendChild(li);
   });
 
   // station stats
   const counted = list.filter(e => e.counted);
   const mine = {sends:list.length, clicks:list.reduce((x, e) => x + e.n, 0), lv:list.reduce((x, e) => x + e.l, 0), max:list.reduce((x, e) => Math.max(x, e.l), 0)};
-  const base = s.base[t];
-  const all = {sends:base.sends + counted.length, clicks:base.clicks + counted.reduce((x, e) => x + e.n, 0), lv:base.lv + counted.reduce((x, e) => x + e.l, 0)};
+  const srv = backend ? statsFor(s.id, t) : null;
+  if (backend) loadStats(s.id, t);
+  // with the server, its totals already include this phone's accepted batches
+  const base = srv ? {sends:srv.total.sends, clicks:srv.total.clicks, lv:srv.total.lv, ppl:srv.total.people} : s.base[t];
+  const all = srv ? {...base} : {sends:base.sends + counted.length, clicks:base.clicks + counted.reduce((x, e) => x + e.n, 0), lv:base.lv + counted.reduce((x, e) => x + e.l, 0)};
   $('statTitle').textContent = `本站怒氣・${typeName(t)}`;
   $('sMineL').textContent = raw ? '你的點擊總數' : '你的等級總和';
   $('sAllL').textContent = raw ? '全站點擊總數' : '全站等級總和';
   $('sMine').textContent = fmt(raw ? mine.clicks : mine.lv);
   $('sMineAlt').textContent = mine.sends ? `${mine.sends} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(mine.clicks / mine.sends))} 下` : `最高 Lv.${mine.max}`) : '還沒送出';
   $('sAll').textContent = fmt(raw ? all.clicks : all.lv);
-  $('sAllAlt').textContent = all.sends ? `${fmt(all.sends)} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(all.clicks / all.sends))} 下` : `平均 Lv.${(all.lv / all.sends).toFixed(1)}`) : (mode === 'live' ? '需要後端才有其他人的資料' : '還沒有人送出');
-  $('sPpl').textContent = fmt(base.ppl + (counted.length ? 1 : 0));
+  $('sAllAlt').textContent = all.sends ? `${fmt(all.sends)} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(all.clicks / all.sends))} 下` : `平均 Lv.${(all.lv / all.sends).toFixed(1)}`) : (mode === 'live' && !backend ? '連不到伺服器，沒有其他人的資料' : '還沒有人送出');
+  $('sPpl').textContent = fmt(srv ? base.ppl : base.ppl + (counted.length ? 1 : 0));
   $('explain').textContent = raw
     ? '點擊次數：一次 Lv.7 要 128 下，十次 Lv.3 只要 80 下。原始點擊量反映的是「多用力」。'
     : '等級總和：每批之間要冷卻 30 秒，等級只當強度參考，需求量看受影響人次。';
 
+  renderFavs();
   // demand log
   const d = $('demand'); d.innerHTML = '';
+  if (backend) {
+    $('demandNote').textContent = '所有站點最近結束的空站、滿站，以及期間有多少人在現場受影響。';
+    if (events === null) loadEvents();
+    if (!events || !events.length) { d.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">還沒有紀錄。有人在空站送出怒氣、之後站點恢復，就會出現在這裡。</span></li>'; return; }
+    events.forEach(r => {
+      const li = document.createElement('li'), mins = (r.end - r.start) / 60000;
+      li.innerHTML = `<time>${hhmm(r.end)}</time><span><span class="nm"></span>・${typeName(r.type)}<br><span class="note">${r.type === 'rent' ? '空站' : '滿站'} ${mins.toFixed(0)} 分鐘後恢復${r.jump >= 5 ? '（疑似調度）' : ''}，<b>${r.people}</b> 人在現場受影響</span></span><span class="tag no">已恢復</span>`;
+      li.querySelector('.nm').textContent = r.name;
+      d.appendChild(li);
+    });
+    return;
+  }
   if (!st.demand.length) d.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">還沒有紀錄。討伐結束（時間到或站點恢復）就會出現。可以把模擬速度調到 60× 試試。</span></li>';
   st.demand.slice(0, 8).forEach(r => {
     const li = document.createElement('li');
@@ -1039,6 +1212,7 @@ buildOptions(); renderAll(); probeTiles();
 $('useGps').hidden = !('geolocation' in navigator);
 startGps();
 refresh(true); setInterval(refresh, REFRESH_MS); // keep retrying so a later success switches to live data
+setInterval(() => { if (backend) { loadStats(cur().id, st.type, true); loadEvents(); } }, 30000);
 })();
 </script>
 </body></html>

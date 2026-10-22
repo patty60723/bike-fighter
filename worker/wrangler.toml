@@ -1,0 +1,20 @@
+name = "bike-fighter-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Pages allowed to call the API (localhost is always allowed for testing)
+[vars]
+ALLOWED_ORIGINS = "https://patty60723.github.io"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bike-fighter"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# open and close empty-station spells every minute
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true
