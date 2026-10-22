@@ -178,7 +178,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.6</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v0.7</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -226,6 +226,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
             <div><span>可借車</span><b id="rentN">0</b></div>
             <div><span>可還位</span><b id="retN">0</b></div>
           </div>
+          <p class="note" id="dataAge"></p>
           <div class="loc">
             <div class="loc-row"><span>你離這站 <b id="distTxt">–</b></span><span class="pill" id="locPill">在範圍內</span></div>
             <div class="loc-row">
@@ -549,6 +550,11 @@ function pick(x, names){
   }
   return NaN;
 }
+// station data times come as '2026-10-22 18:05:12' (Taipei) or '20261022T180403' (New Taipei), Taiwan time
+function parseTime(v){
+  const m = String(v || '').match(/^(\d{4})-?(\d{2})-?(\d{2})[ T]?(\d{2}):?(\d{2}):?(\d{2})/);
+  return m ? Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+08:00`) || null : null;
+}
 // stations without bike/dock counts are dropped rather than shown as 0,
 // since a false 0 would start an empty-station boss
 function parseLive(arr, prefix){
@@ -557,7 +563,7 @@ function parseLive(arr, prefix){
     name:String(x.sna || '').replace(/^YouBike2\.0_/, ''),
     lat:+(x.latitude ?? x.lat), lng:+(x.longitude ?? x.lng),
     rent:pick(x, RENT_KEYS), ret:pick(x, RET_KEYS),
-    time:x.updateTime || x.mday || null, base:ZERO,
+    time:parseTime(x.srcUpdateTime || x.infoTime || x.updateTime || x.mday), base:ZERO,
   })).filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng) && s.lat > 20 && Number.isFinite(s.rent) && Number.isFinite(s.ret));
 }
 async function getJson(url){
@@ -847,6 +853,9 @@ function renderAll(){
   const a = avail(s, 'rent'), b = avail(s, 'ret');
   $('rentN').textContent = a; $('rentN').className = a === 0 ? 'zero' : 'okv';
   $('retN').textContent = b;  $('retN').className = b === 0 ? 'zero' : 'okv';
+  const age = s.time ? Math.round((Date.now() - s.time) / 60000) : null;
+  $('dataAge').textContent = mode !== 'live' ? '範例資料，不是即時車位' : s.time ? `這站的車位資料時間：${hhmm(s.time)}（${age <= 0 ? '剛剛' : age + ' 分鐘前'}）${age > 5 ? '，資料偏舊，可能和官方 App 不同' : ''}` : '這站的資料沒有附時間';
+  $('dataAge').style.color = age > 5 ? 'var(--bad)' : '';
   $('tRent').setAttribute('aria-pressed', t === 'rent'); $('tRet').setAttribute('aria-pressed', t === 'ret');
   $('uLevel').setAttribute('aria-pressed', !raw); $('uRaw').setAttribute('aria-pressed', raw);
   $('soundBtn').textContent = '音效：' + (st.sound ? '開' : '關'); $('soundBtn').setAttribute('aria-pressed', st.sound);
