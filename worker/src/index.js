@@ -210,31 +210,52 @@ async function getEvents(url, env, cors) {
 
 // ---------- every minute: open and close empty/full spells ----------
 
+// Which station/type pairs are at 0. A station with 0 bikes AND 0 docks is out of service, not empty.
+function zeroKeys(stations) {
+  const keys = new Set();
+  for (const s of stations) {
+    if (s.rent === 0 && s.ret === 0) continue;
+    for (const t of TYPES) if (s[t] === 0) keys.add(`${s.id}:${t}`);
+  }
+  return keys;
+}
+const SPELL_MIN_KEEP = 5 * 60_000; // a spell nobody complained about is only logged if it lasted this long
+
 async function sweep(env) {
   const data = await loadStations(env, { fresh: true });
   if (!data.stations.length) return { opened: 0, closed: 0 };
-  await env.DB.prepare('INSERT OR REPLACE INTO snapshot (id, body, updated) VALUES (1, ?, ?)').bind(JSON.stringify(data), data.updated).run();
   const now = Date.now(), byId = new Map(data.stations.map(s => [s.id, s]));
-  const open = (await env.DB.prepare('SELECT sid, type, name, since FROM empty_open').all()).results;
-  const isOpen = new Set(open.map(o => `${o.sid}:${o.type}`));
-  const stmts = [];
+
+  // Compare with last minute's snapshot (one row) instead of reading every open spell.
+  // Without a recent snapshot (first run, or the cron stalled), fall back to the open-spell table once.
+  const prevRow = await env.DB.prepare('SELECT body, updated FROM snapshot WHERE id = 1').first();
+  let before;
+  if (prevRow && now - prevRow.updated < 5 * 60_000) before = zeroKeys(JSON.parse(prevRow.body).stations);
+  else before = new Set((await env.DB.prepare('SELECT sid, type FROM empty_open').all()).results.map(o => `${o.sid}:${o.type}`));
+  const after = zeroKeys(data.stations);
+
+  const stmts = [env.DB.prepare('INSERT OR REPLACE INTO snapshot (id, body, updated) VALUES (1, ?, ?)').bind(JSON.stringify(data), data.updated)];
   let opened = 0, closed = 0;
-  for (const s of data.stations) for (const t of TYPES) {
-    if (s[t] === 0 && !isOpen.has(`${s.id}:${t}`)) {
-      stmts.push(env.DB.prepare('INSERT INTO empty_open (sid, type, name, since) VALUES (?, ?, ?, ?)').bind(s.id, t, s.name, now));
-      opened++;
-    }
+  for (const key of after) {
+    if (before.has(key)) continue;
+    const [sid, type] = key.split(':');
+    stmts.push(env.DB.prepare('INSERT OR IGNORE INTO empty_open (sid, type, name, since) VALUES (?, ?, ?, ?)').bind(sid, type, byId.get(sid).name, now));
+    opened++;
   }
-  for (const o of open) {
+  for (const key of before) {
+    if (after.has(key)) continue;
+    const [sid, type] = key.split(':');
     // leave a city's spells alone when that city didn't answer this minute
-    if (!data.prefixes.includes(o.sid.slice(0, 2))) continue;
-    const s = byId.get(o.sid);
-    if (s && s[o.type] === 0) continue;
-    const jump = s ? s[o.type] : 0;
+    if (!data.prefixes.includes(sid.slice(0, 2))) continue;
+    const jump = byId.get(sid)?.[type] ?? 0;
+    // log the spell if someone was affected or it lasted a while; short blips nobody noticed are dropped
     stmts.push(env.DB.prepare(`INSERT INTO empty_events (sid, type, name, start, end, people, jump)
-      SELECT ?, ?, ?, ?, ?, COUNT(DISTINCT device), ? FROM angers WHERE sid = ? AND type = ? AND counted = 1 AND at >= ?`)
-      .bind(o.sid, o.type, o.name, o.since, now, jump, o.sid, o.type, o.since));
-    stmts.push(env.DB.prepare('DELETE FROM empty_open WHERE sid = ? AND type = ?').bind(o.sid, o.type));
+      SELECT sid, type, name, since, ?1, people, ?2 FROM (
+        SELECT o.sid, o.type, o.name, o.since,
+          (SELECT COUNT(DISTINCT a.device) FROM angers a WHERE a.sid = o.sid AND a.type = o.type AND a.counted = 1 AND a.at >= o.since) AS people
+        FROM empty_open o WHERE o.sid = ?3 AND o.type = ?4)
+      WHERE people > 0 OR ?1 - since >= ?5`).bind(now, jump, sid, type, SPELL_MIN_KEEP));
+    stmts.push(env.DB.prepare('DELETE FROM empty_open WHERE sid = ? AND type = ?').bind(sid, type));
     closed++;
   }
   for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
