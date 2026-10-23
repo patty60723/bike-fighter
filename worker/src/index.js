@@ -82,8 +82,11 @@ let memo = null; // per isolate; the upstream fetches are also cached by Cloudfl
 async function loadStations(env, { fresh = false } = {}) {
   if (!fresh && memo && Date.now() - memo.updated < 30_000) return memo;
   if (!fresh && !env.STATION_FIXTURE) {
-    const row = await env.DB.prepare('SELECT body, updated FROM snapshot WHERE id = 1').first();
-    if (row && Date.now() - row.updated < SNAPSHOT_MAX_AGE) return (memo = JSON.parse(row.body));
+    // if D1 is unavailable (e.g. over the daily limit) fall through and ask the cities directly
+    try {
+      const row = await env.DB.prepare('SELECT body, updated FROM snapshot WHERE id = 1').first();
+      if (row && Date.now() - row.updated < SNAPSHOT_MAX_AGE) return (memo = JSON.parse(row.body));
+    } catch (e) { console.error('snapshot read failed', e.message); }
   }
   let data;
   if (env.STATION_FIXTURE) {
@@ -165,12 +168,36 @@ async function postAnger(request, env, cors) {
   const avail = s[type], counted = avail === 0 ? 1 : 0, lv = level(clicks);
   await env.DB.prepare('INSERT INTO angers (device, sid, type, clicks, level, counted, avail, lat, lng, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(device, sid, type, clicks, lv, counted, avail, lat, lng, now).run();
+  statsMemo.delete(`${sid}:${type}`); // the sender should see their own batch at once
   return json({ ok: true, counted: !!counted, level: lv, avail, at: now }, 201, cors);
 }
+
+// Short-lived copies kept in this Worker's memory, so many phones looking at the same station
+// share one set of D1 queries. (The Cache API doesn't work on workers.dev addresses.)
+const STATS_TTL = 15_000, EVENTS_TTL = 60_000;
+const statsMemo = new Map(), eventsMemo = new Map();
 
 async function getStats(url, env, cors) {
   const sid = url.searchParams.get('sid'), type = url.searchParams.get('type'), me = url.searchParams.get('device');
   if (!sid || !TYPES.includes(type)) return fail(400, 'bad_request', '需要 sid 和 type', cors);
+  const key = `${sid}:${type}`, hit = statsMemo.get(key);
+  const raw = hit && Date.now() - hit.at < STATS_TTL ? hit.raw : await queryStats(env, sid, type);
+  if (raw !== hit?.raw) { statsMemo.set(key, { at: Date.now(), raw }); if (statsMemo.size > 500) statsMemo.delete(statsMemo.keys().next().value); }
+  const fighters = raw.fighters.map(r => ({ lv: r.lv, me: r.device === me }));
+  return json({
+    ok: true, sid, type,
+    total: raw.total,
+    spell: raw.spell, // the current empty/full spell, or null when the station has bikes/docks
+    boss: raw.spell === null ? null : {
+      windowMin: BOSS_WINDOW / 60000, target: BOSS_TARGET,
+      people: fighters.length, defeated: fighters.length >= BOSS_TARGET,
+      fighters: fighters.slice(0, 20), // levels only; other devices stay anonymous
+    },
+    history: raw.history,
+  }, 200, cors, { 'Cache-Control': 'no-store' });
+}
+
+async function queryStats(env, sid, type) {
   const now = Date.now();
   const since = (await env.DB.prepare('SELECT since FROM empty_open WHERE sid = ? AND type = ?').bind(sid, type).first())?.since ?? null;
   // the boss only counts people from this spell, and at most the last 10 minutes of it
@@ -183,29 +210,28 @@ async function getStats(url, env, cors) {
     env.DB.prepare('SELECT start, end, people, jump FROM empty_events WHERE sid = ? AND type = ? ORDER BY end DESC LIMIT 5').bind(sid, type),
   ]);
   const t = tot.results[0];
-  const fighters = boss.results.map(r => ({ lv: r.lv, me: r.device === me }));
   let spell = null;
   if (since !== null) {
     const r = await env.DB.prepare('SELECT COUNT(DISTINCT device) AS people FROM angers WHERE sid = ? AND type = ? AND counted = 1 AND at >= ?').bind(sid, type, since).first();
     spell = { since, people: r.people };
   }
-  return json({
-    ok: true, sid, type,
+  return {
     total: { sends: t.sends, clicks: t.clicks, lv: t.lv, people: ppl.results[0].people },
-    spell, // the current empty/full spell, or null when the station has bikes/docks
-    boss: since === null ? null : {
-      windowMin: BOSS_WINDOW / 60000, target: BOSS_TARGET,
-      people: fighters.length, defeated: fighters.length >= BOSS_TARGET,
-      fighters: fighters.slice(0, 20), // levels only; other devices stay anonymous
-    },
+    spell,
+    fighters: boss.results, // device ids stay in memory here; only levels go out
     history: hist.results,
-  }, 200, cors, { 'Cache-Control': 'no-store' });
+  };
 }
 
 async function getEvents(url, env, cors) {
   const limit = Math.min(20, Math.max(1, parseInt(url.searchParams.get('limit') || '8', 10) || 8));
-  const r = await env.DB.prepare('SELECT sid, type, name, start, end, people, jump FROM empty_events WHERE people > 0 ORDER BY end DESC LIMIT ?').bind(limit).all();
-  return json({ ok: true, events: r.results }, 200, cors, { 'Cache-Control': 'public, max-age=30' });
+  const hit = eventsMemo.get(limit);
+  let events = hit && Date.now() - hit.at < EVENTS_TTL ? hit.events : null;
+  if (!events) {
+    events = (await env.DB.prepare('SELECT sid, type, name, start, end, people, jump FROM empty_events WHERE people > 0 ORDER BY end DESC LIMIT ?').bind(limit).all()).results;
+    eventsMemo.set(limit, { at: Date.now(), events });
+  }
+  return json({ ok: true, events }, 200, cors, { 'Cache-Control': 'public, max-age=30' });
 }
 
 // ---------- every minute: open and close empty/full spells ----------
