@@ -200,6 +200,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .cnt{font-family:var(--f-num);font-weight:700;font-size:15px;min-width:54px;text-align:center;border-radius:8px;padding:2px 6px;color:var(--on-heat);font-variant-numeric:tabular-nums}
 .cnt small{font-family:var(--f-body);font-weight:500;font-size:11px;margin-right:3px}
 .cnt.s0{background:var(--bad)} .cnt.s1{background:var(--heat1);color:var(--on-heat1)} .cnt.s2{background:var(--ok)} .cnt.na{background:var(--track);color:var(--muted)}
+.mk.sx{background:var(--lock)}
 .mk.fav{box-shadow:0 0 0 3px var(--heat1),0 2px 6px rgba(0,0,0,.25)}
 .label-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .label-row .label{margin:0}
@@ -217,7 +218,7 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 </div>
 <div class="app">
   <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v1.2</span><span class="chip" id="modeChip">示範資料</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v1.3</span><span class="chip" id="modeChip">示範資料</span></div>
     <div class="hdr-actions">
       <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
       <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
@@ -436,6 +437,17 @@ let backend = false; // true while the API answers; then stats, the boss and the
 let stations = DEMO.map(s => ({...s, base:demoBase(s)}));
 if (!st.you) st.you = {...DEMO_YOU};
 const byId = id => stations.find(s => s.id === id);
+// Most of a city's stations at 0 bikes at once means YouBike stopped service there (typhoon,
+// outage): those stations are drawn grey, open no boss and their anger isn't counted as demand.
+const SUSPEND_SHARE = 0.6, SUSPEND_MIN_STATIONS = 50, PREFIX_CITY = {tp:'台北市', nt:'新北市'};
+let offPrefixes = new Set();
+function findSuspended(list){
+  const n = {}, zero = {};
+  for (const x of list) { const p = x.id.slice(0, 2); n[p] = (n[p] || 0) + 1; if (x.rent === 0) zero[p] = (zero[p] || 0) + 1; }
+  return new Set(Object.keys(n).filter(p => n[p] >= SUSPEND_MIN_STATIONS && (zero[p] || 0) / n[p] >= SUSPEND_SHARE));
+}
+const isOff = x => !!x && offPrefixes.has(x.id.slice(0, 2));
+const offCities = () => [...offPrefixes].map(p => PREFIX_CITY[p] || p);
 const cur = () => byId(st.station) || nearest()[0];
 const k = (sid, t) => sid + ':' + t;
 const avail = (s, t) => st.restocked[k(s.id, t)] ?? s[t];
@@ -488,7 +500,7 @@ function renderMap(){
   const g = cv2.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
   if (dots) {
     const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim();
-    const fill = [col('--bad'), col('--heat1'), col('--ok')], ring = col('--surface'), fav = col('--heat1');
+    const fill = [col('--bad'), col('--heat1'), col('--ok'), col('--lock')], ring = col('--surface'), fav = col('--heat1');
     const r = z >= 13 ? 5 : 3.5;
     for (const x of stations) {
       if (x.id === s.id) continue;
@@ -496,7 +508,7 @@ function renderMap(){
       if (p.x < -8 || p.y < -8 || p.x > W + 8 || p.y > H + 8) continue;
       const a = avail(x, t);
       g.beginPath(); g.arc(p.x, p.y, r, 0, 7);
-      g.fillStyle = fill[a === 0 ? 0 : a <= 3 ? 1 : 2]; g.fill();
+      g.fillStyle = fill[isOff(x) ? 3 : a === 0 ? 0 : a <= 3 ? 1 : 2]; g.fill();
       g.lineWidth = isFav(x.id) ? 2 : 1; g.strokeStyle = isFav(x.id) ? fav : ring; g.stroke();
     }
   }
@@ -512,7 +524,7 @@ function renderMap(){
       $('markers').appendChild(el); markerEls.set(x.id, el);
     }
     const a = avail(x, t), r = st.raids[k(x.id, t)];
-    el.className = 'mk ' + (a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && bossActive(x, t) ? ' raid' : '') + (isFav(x.id) ? ' fav' : '');
+    el.className = 'mk ' + (isOff(x) ? 'sx' : a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && bossActive(x, t) ? ' raid' : '') + (isFav(x.id) ? ' fav' : '');
     el.textContent = a;
     if (x.id === s.id) el.dataset.name = x.name; else delete el.dataset.name;
     el.setAttribute('aria-label', `${x.name}，${t === 'rent' ? '可借' : '可還'} ${a}`);
@@ -693,7 +705,7 @@ function showHits(){
   hits.forEach((x, i) => {
     const li = document.createElement('li');
     li.id = 'qh' + i; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', i === hitIdx);
-    li.innerHTML = `<span class="nm"></span>${cntChip('借', avail(x, 'rent'))}${cntChip('還', avail(x, 'ret'))}`;
+    li.innerHTML = `<span class="nm"></span>${cntChip('借', avail(x, 'rent'), isOff(x))}${cntChip('還', avail(x, 'ret'), isOff(x))}`;
     li.querySelector('.nm').textContent = x.name;
     const sub = document.createElement('small'); sub.textContent = [x.area, distText(distTo(x))].filter(Boolean).join('・');
     li.querySelector('.nm').appendChild(sub);
@@ -719,7 +731,7 @@ qEl.addEventListener('keydown', e => {
 });
 qEl.addEventListener('focus', () => { if (qEl.value.trim()) { hits = searchStations(qEl.value); showHits(); } });
 qEl.addEventListener('blur', () => { qList.hidden = true; qEl.setAttribute('aria-expanded', false); });
-const cntChip = (label, n) => `<span class="cnt ${n == null ? 'na' : n === 0 ? 's0' : n <= 3 ? 's1' : 's2'}"><small>${label}</small>${n ?? '–'}</span>`;
+const cntChip = (label, n, off) => `<span class="cnt ${n == null || off ? 'na' : n === 0 ? 's0' : n <= 3 ? 's1' : 's2'}"><small>${label}</small>${n ?? '–'}</span>`;
 function renderFavs(){
   const ul = $('favList'), s = cur(), on = isFav(s.id);
   $('favBtn').textContent = on ? '★ 已加入常用' : '☆ 加入常用';
@@ -729,7 +741,7 @@ function renderFavs(){
   st.favs.forEach(f => {
     const x = byId(f.id), li = document.createElement('li'), b = document.createElement('button');
     if (x && x.id === s.id) b.className = 'cur';
-    b.innerHTML = `<span class="nm"></span>${cntChip('借', x ? avail(x, 'rent') : null)}${cntChip('還', x ? avail(x, 'ret') : null)}`;
+    b.innerHTML = `<span class="nm"></span>${cntChip('借', x ? avail(x, 'rent') : null, isOff(x))}${cntChip('還', x ? avail(x, 'ret') : null, isOff(x))}`;
     b.querySelector('.nm').textContent = f.name;
     const sub = document.createElement('small'); sub.textContent = x ? distText(distTo(x)) : (mode === 'live' ? '目前讀不到這站的資料' : '切換到即時資料後才會顯示');
     b.querySelector('.nm').appendChild(sub);
@@ -835,6 +847,7 @@ async function refresh(first){
   const wasDemo = mode === 'demo';
   if (wasDemo && combo) return false; // don't swap stations mid-combo
   mode = 'live'; stations = list; dataTime = Date.now();
+  offPrefixes = findSuspended(list);
   st.restocked = {};
   if (wasDemo) {
     // drop demo-only state that points at demo stations
@@ -905,7 +918,7 @@ function renderBadge(){
   const b = $('mapBadge'), chip = $('modeChip');
   if (mode === 'live') {
     chip.textContent = backend ? '即時資料・已連線' : '即時資料・離線'; chip.className = 'chip live';
-    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (dupCount ? `・有 ${dupCount} 筆重複站點，已合併` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
+    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (dupCount ? `・有 ${dupCount} 筆重複站點，已合併` : '') + (offPrefixes.size ? `・${offCities().join('、')} YouBike 暫停服務中` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
     $('dataNote').textContent = backend
       ? '車位數來自台北市、新北市政府開放資料，每分鐘更新。怒氣、受影響人次和空站魔王的人數都是真實資料：伺服器會再檢查一次距離、冷卻、手速和當下車位，才記錄下來。'
       : '車位數來自台北市、新北市政府開放資料，每分鐘更新。目前連不到伺服器，其他人的怒氣和討伐的路人是模擬的。';
@@ -936,7 +949,7 @@ function finalize(){
   const c = combo; combo = null; if (!c) return;
   const s = byId(c.sid);
   if (c.n < 2 || !s) { say('只按 1 下算誤觸，這批沒有送出'); renderAll(); return; }
-  const l = lv(c.n), counted = avail(s, c.type) === 0;
+  const l = lv(c.n), counted = avail(s, c.type) === 0 && !isOff(s);
   const entry = {t:Date.now(), n:c.n, l, counted, status:backend ? 'sending' : 'local'};
   mySends(c.sid, c.type).unshift(entry);
   st.coolUntil = Date.now() + COOLDOWN;
@@ -989,6 +1002,7 @@ async function loadEvents(){
 }
 const statsFor = (sid, t) => stats.get(k(sid, t))?.data || null;
 function bossActive(x, t){
+  if (isOff(x)) return false;
   if (backend) return !!statsFor(x.id, t)?.spell;
   const r = st.raids[k(x.id, t)]; return !!(r && r.status === 'live');
 }
@@ -1000,7 +1014,7 @@ async function sendAnger(entry, c){
   try {
     const {status, body} = await api('/anger', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({device:DEVICE, sid:c.sid, type:c.type, clicks:c.n, ms:Math.round(c.last - c.start), lat:st.you.lat, lng:st.you.lng, acc:gpsAcc})});
-    if (body.ok) { entry.status = 'sent'; entry.counted = body.counted; }
+    if (body.ok) { entry.status = 'sent'; entry.counted = body.counted; if (body.suspended) entry.reason = '暫停服務中，未計入'; }
     else {
       entry.status = 'rejected'; entry.counted = false; entry.reason = body.message || `伺服器回應 ${status}`;
       if (body.error === 'cooldown' && body.retryIn) st.coolUntil = Date.now() + body.retryIn * 1000;
@@ -1012,6 +1026,7 @@ async function sendAnger(entry, c){
 
 // ---------- boss raid ----------
 function raidFor(s, t){
+  if (isOff(s)) return null;
   const key = k(s.id, t);
   if (!st.raids[key] && avail(s, t) === 0) st.raids[key] = {sid:s.id, type:t, elapsed:0, others:[], you:null, status:'live', defeated:false, startedAt:Date.now()};
   return st.raids[key] || null;
@@ -1061,6 +1076,11 @@ function updateLive(r){
 function renderBossLive(s, t, p){
   const data = statsFor(s.id, t), what = t === 'rent' ? '空站魔王' : '滿站魔王', a = avail(s, t);
   const spell = data?.spell, boss = data?.boss;
+  if (isOff(s)) {
+    p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
+      <p class="explain">${offCities().join('、')}的 YouBike 目前幾乎每一站都是 0 輛，看起來是暫停服務（例如颱風）。這段期間不會出現魔王，送出的怒氣也不算進需求統計。</p>`;
+    return;
+  }
   if (!spell) {
     p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
       <p class="explain">${a === 0 ? `${esc(s.name)} 剛變成 0 ${t === 'rent' ? '輛' : '位'}，伺服器每分鐘確認一次，${what}很快就會出現。現在送出的怒氣一樣會算進去。`
@@ -1163,7 +1183,7 @@ function renderAll(){
   $('rentN').textContent = a; $('rentN').className = a === 0 ? 'zero' : 'okv';
   $('retN').textContent = b;  $('retN').className = b === 0 ? 'zero' : 'okv';
   const age = s.time ? Math.round((Date.now() - s.time) / 60000) : null;
-  $('dataAge').textContent = mode !== 'live' ? '範例資料，不是即時車位' : s.time ? `這站的車位資料時間：${hhmm(s.time)}（${age <= 0 ? '剛剛' : age + ' 分鐘前'}）${age > 5 ? '，資料偏舊，可能和官方 App 不同' : ''}` : '這站的資料沒有附時間';
+  $('dataAge').textContent = mode !== 'live' ? '範例資料，不是即時車位' : isOff(s) ? `${PREFIX_CITY[s.id.slice(0, 2)] || ''}的 YouBike 看起來暫停服務中（例如颱風），車數暫時沒有參考價值` : s.time ? `這站的車位資料時間：${hhmm(s.time)}（${age <= 0 ? '剛剛' : age + ' 分鐘前'}）${age > 5 ? '，資料偏舊，可能和官方 App 不同' : ''}` : '這站的資料沒有附時間';
   $('dataAge').style.color = age > 5 ? 'var(--bad)' : '';
   $('tRent').setAttribute('aria-pressed', t === 'rent'); $('tRet').setAttribute('aria-pressed', t === 'ret');
   $('uLevel').setAttribute('aria-pressed', !raw); $('uRaw').setAttribute('aria-pressed', raw);

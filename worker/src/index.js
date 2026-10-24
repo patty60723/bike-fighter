@@ -165,11 +165,12 @@ async function postAnger(request, env, cors) {
   const dist = haversine(s, { lat, lng });
   if (dist > RADIUS + Math.min(acc, GPS_SLACK)) return fail(403, 'not_at_station', `你離站點 ${Math.round(dist)} 公尺`, cors, { dist: Math.round(dist) });
 
-  const avail = s[type], counted = avail === 0 ? 1 : 0, lv = level(clicks);
+  const suspended = suspendedPrefixes(data.stations).includes(sid.slice(0, 2));
+  const avail = s[type], counted = avail === 0 && !suspended ? 1 : 0, lv = level(clicks);
   await env.DB.prepare('INSERT INTO angers (device, sid, type, clicks, level, counted, avail, lat, lng, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(device, sid, type, clicks, lv, counted, avail, lat, lng, now).run();
   statsMemo.delete(`${sid}:${type}`); // the sender should see their own batch at once
-  return json({ ok: true, counted: !!counted, level: lv, avail, at: now }, 201, cors);
+  return json({ ok: true, counted: !!counted, suspended, level: lv, avail, at: now }, 201, cors);
 }
 
 // Short-lived copies kept in this Worker's memory, so many phones looking at the same station
@@ -237,9 +238,19 @@ async function getEvents(url, env, cors) {
 // ---------- every minute: open and close empty/full spells ----------
 
 // Which station/type pairs are at 0. A station with 0 bikes AND 0 docks is out of service, not empty.
+// When most of a city's stations have no bikes at once (a typhoon, a system outage), YouBike has
+// stopped service there; that's not demand, so those stations open no spells and count no anger.
+const SUSPEND_SHARE = 0.6, SUSPEND_MIN_STATIONS = 50;
+const PREFIX_CITY = { tp: '台北市', nt: '新北市' };
+function suspendedPrefixes(stations) {
+  const n = {}, zero = {};
+  for (const s of stations) { const p = s.id.slice(0, 2); n[p] = (n[p] || 0) + 1; if (s.rent === 0) zero[p] = (zero[p] || 0) + 1; }
+  return Object.keys(n).filter(p => n[p] >= SUSPEND_MIN_STATIONS && (zero[p] || 0) / n[p] >= SUSPEND_SHARE);
+}
 function zeroKeys(stations) {
-  const keys = new Set();
+  const keys = new Set(), off = new Set(suspendedPrefixes(stations));
   for (const s of stations) {
+    if (off.has(s.id.slice(0, 2))) continue;
     if (s.rent === 0 && s.ret === 0) continue;
     for (const t of TYPES) if (s[t] === 0) keys.add(`${s.id}:${t}`);
   }
@@ -298,7 +309,8 @@ export default {
         const d = await loadStations(env);
         if (!d.stations.length) return fail(502, 'upstream', `讀不到站點資料（${d.errors.join('；')}）`, cors);
         const { updated, cities, errors, stations } = d;
-        return json({ ok: true, updated, cities, errors, stations }, 200, cors, { 'Cache-Control': 'public, max-age=30' });
+        const suspended = suspendedPrefixes(stations).map(p => PREFIX_CITY[p] || p);
+        return json({ ok: true, updated, cities, errors, suspended, stations }, 200, cors, { 'Cache-Control': 'public, max-age=30' });
       }
       if (request.method === 'POST' && url.pathname === '/anger') return await postAnger(request, env, cors);
       if (request.method === 'GET' && url.pathname === '/stats') return await getStats(url, env, cors);
