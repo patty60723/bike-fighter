@@ -3,67 +3,271 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
 <style>
-/* Layout: the map leads (stations colored by bikes or docks, you as a blue dot, the 100 m fence around the chosen station); the combo button sits under it; boss event, stats and logs in the right column. */
+/* Layout: four tabs behind a bottom bar (a top bar on wide screens).
+   發洩 fills one screen: station plate, rent/return switch, title bar, boss bar, the spoked "tire" combo button, nearby-station rail.
+   附近 = search + map + nearby/favourite list; 戰績 = title, records, badge wall, my batches; 站況 = station stats, boss detail, demand log, rules, settings. */
 :root{
-  --bg:#E8EBEE; --surface:#F7F8F9; --ink:#14171C; --muted:#5A6270; --line:#D2D7DD;
-  --heat1:#F2A900; --heat2:#E8541E; --heat3:#CF1E3B; --heat4:#86106A;
-  --on-heat1:#2B1B00; --on-heat:#FFFFFF; --lock:#9AA2AD;
-  --ok:#1E8449; --bad:#CF1E3B; --track:#DADFE4; --boss:#2C2F6B;
-  --you:#2F6BFF; --map-bg:#DDE3E8; --map-grid:rgba(20,23,28,.06); --tile-filter:none;
-  --f-display:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
-  --f-num:"Chakra Petch","DIN Alternate","Roboto Mono",ui-monospace,monospace;
+  --bg:#EEF0F3; --surface:#FFFFFF; --ink:#16181E; --muted:#586070; --line:#D3D8DF; --track:#E0E3E9;
+  --heat1:#F2A900; --heat2:#E8541E; --heat3:#CF1E3B; --heat4:#86106A; --on-heat1:#2B1B00; --on-heat:#FFFFFF;
+  --boss:#4B3BC4; --boss-soft:#E8E5FA; --on-boss:#FFFFFF; --ok:#1E8449; --bad:#CF1E3B; --warn:#A86200; --lock:#A3AAB5; --you:#2F6BFF;
+  --bronze:#A8622F; --silver:#7E8896; --gold:#C99700;
+  --plate:#16181E; --plate-ink:#F4F5F7; --plate-muted:#AEB5C2; --skel:#E3E6EB; --hi:#FFFFFF; --lo:#000000;
+  --map-bg:#DDE3E8; --map-grid:rgba(20,23,28,.06); --tile-filter:none;
+  --f-num:"Bungee","Arial Black",Impact,sans-serif;
   --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --nav-h:62px;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0F1216; --surface:#181C22; --ink:#ECEEF1; --muted:#9AA3AF; --line:#2A3039;
-  --heat1:#FFB81C; --heat2:#FF6A33; --heat3:#F0334F; --heat4:#B5308F; --lock:#4A525D;
-  --ok:#3DBE76; --bad:#FF4D66; --track:#262C34; --boss:#8C90FF;
-  --you:#5B8CFF; --map-bg:#1B2027; --map-grid:rgba(236,238,241,.06); --tile-filter:invert(.92) hue-rotate(180deg) saturate(.5) brightness(.95); color-scheme:dark;
+  --bg:#121419; --surface:#1B1E25; --ink:#ECEEF2; --muted:#9BA3B0; --line:#2A2F38; --track:#262A33;
+  --heat1:#FFB81C; --heat2:#FF6A33; --heat3:#F0334F; --heat4:#C03A9C;
+  --boss:#A394FF; --boss-soft:#221D44; --on-boss:#15122E; --ok:#3DBE76; --bad:#FF4D66; --warn:#FFA733; --lock:#4D5560; --you:#5B8CFF;
+  --bronze:#D98F5C; --silver:#BAC3CF; --gold:#FFC83D;
+  --plate:#262A33; --plate-ink:#ECEEF2; --plate-muted:#9BA3B0; --skel:#22262E;
+  --map-bg:#1B2027; --map-grid:rgba(236,238,241,.06); --tile-filter:invert(.92) hue-rotate(180deg) saturate(.5) brightness(.95); color-scheme:dark;
 }}
 :root[data-theme="dark"]{
-  --bg:#0F1216; --surface:#181C22; --ink:#ECEEF1; --muted:#9AA3AF; --line:#2A3039;
-  --heat1:#FFB81C; --heat2:#FF6A33; --heat3:#F0334F; --heat4:#B5308F; --lock:#4A525D;
-  --ok:#3DBE76; --bad:#FF4D66; --track:#262C34; --boss:#8C90FF;
-  --you:#5B8CFF; --map-bg:#1B2027; --map-grid:rgba(236,238,241,.06); --tile-filter:invert(.92) hue-rotate(180deg) saturate(.5) brightness(.95); color-scheme:dark;
+  --bg:#121419; --surface:#1B1E25; --ink:#ECEEF2; --muted:#9BA3B0; --line:#2A2F38; --track:#262A33;
+  --heat1:#FFB81C; --heat2:#FF6A33; --heat3:#F0334F; --heat4:#C03A9C;
+  --boss:#A394FF; --boss-soft:#221D44; --on-boss:#15122E; --ok:#3DBE76; --bad:#FF4D66; --warn:#FFA733; --lock:#4D5560; --you:#5B8CFF;
+  --bronze:#D98F5C; --silver:#BAC3CF; --gold:#FFC83D;
+  --plate:#262A33; --plate-ink:#ECEEF2; --plate-muted:#9BA3B0; --skel:#22262E;
+  --map-bg:#1B2027; --map-grid:rgba(236,238,241,.06); --tile-filter:invert(.92) hue-rotate(180deg) saturate(.5) brightness(.95); color-scheme:dark;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 32px}
-button,input,select{font:inherit;color:inherit}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;overflow:hidden}
+button,input{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--heat2);outline-offset:2px}
-.app{max-width:1180px;margin:0 auto;display:grid;gap:16px}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.brand h1{font-family:var(--f-display);font-weight:900;font-size:22px;margin:0;letter-spacing:.02em}
-.chip{font-size:11px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
-.chip.live{color:var(--ok);border-color:var(--ok)}
-.hdr-actions{display:flex;gap:8px;flex-wrap:wrap}
-.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--muted)}
+.ic{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--muted);display:inline-flex;gap:6px;align-items:center}
 .ghost:hover{color:var(--ink);border-color:var(--muted)}
-.ghost:disabled{opacity:.45;cursor:not-allowed}
-.cols{display:grid;gap:16px}
-@media (min-width:900px){.cols{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);align-items:start}}
-.col{display:grid;gap:16px;min-width:0}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
-.label{font-size:12px;letter-spacing:.08em;color:var(--muted);margin:0 0 6px;font-weight:500}
-h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
+.ghost.sm{padding:3px 9px;font-size:12px;white-space:nowrap}
+.link{background:none;border:0;padding:0;color:var(--you);font-weight:700;font-size:12px;cursor:pointer}
+.chip{font-size:11px;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 8px;white-space:nowrap}
+.chip.live{color:var(--ok);border-color:var(--ok)}
 .note{font-size:12px;color:var(--muted);margin:0}
+.empty{font-size:13px;color:var(--muted);margin:0}
 
-/* map */
-.map{position:relative;height:clamp(300px,48vh,500px);overflow:hidden;border-radius:12px;background-color:var(--map-bg);
+/* ---------- shell ---------- */
+.shell{height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "main" "nav"}
+.topbar{grid-area:top;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;
+  padding:6px max(16px,env(safe-area-inset-right,0px)) 2px max(16px,env(safe-area-inset-left,0px))}
+.brand{display:flex;align-items:center;gap:6px;min-width:0}
+.brand h1{font-weight:900;font-size:16px;margin:0;letter-spacing:.02em;white-space:nowrap}
+main{grid-area:main;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;overscroll-behavior:contain}
+.tab{flex:none;width:100%;max-width:1180px;margin:0 auto;padding:8px max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.nav{grid-area:nav;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--surface);padding:6px 6px 8px;min-height:var(--nav-h)}
+.nav button{border:0;background:none;display:grid;justify-items:center;align-content:center;gap:1px;font-size:11px;color:var(--muted);font-weight:500;position:relative;cursor:pointer;padding:2px 0;border-radius:10px}
+.nav button svg{width:24px;height:24px}
+.nav button[aria-current="page"]{color:var(--heat2);font-weight:900}
+.nav button.dot::after{content:"";position:absolute;top:0;left:calc(50% + 8px);width:9px;height:9px;border-radius:50%;background:var(--boss);border:2px solid var(--surface)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav-h) + 14px + env(safe-area-inset-bottom,0px));z-index:40;margin:0;width:max-content;max-width:calc(100% - 32px);
+  background:var(--ink);color:var(--bg);border-radius:12px;padding:8px 14px;font-size:14px;font-weight:700;text-align:center;box-shadow:0 8px 24px -8px rgba(0,0,0,.4);pointer-events:none}
+.toast:empty{display:none}
+.toast.warn{background:var(--bad);color:var(--on-heat)} .toast.good{background:var(--ok);color:var(--on-heat)}
+@media (min-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top nav" "main main"}
+  .topbar,.nav{border-bottom:1px solid var(--line);background:var(--surface)}
+  .topbar{padding-block:10px}
+  .brand h1{font-size:20px}
+  .nav{display:flex;gap:4px;border-top:0;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px 0;min-height:0;align-items:center}
+  .nav button{display:flex;gap:6px;font-size:14px;padding:7px 14px}
+  .nav button svg{width:20px;height:20px}
+  .nav button[aria-current="page"]{background:color-mix(in srgb,var(--heat2) 12%,transparent)}
+  .nav button.dot::after{top:4px;left:auto;right:4px}
+  .toast{bottom:28px}
+}
+
+/* ---------- 發洩 ---------- */
+.vent{flex:1 1 auto;min-height:540px;display:flex;flex-direction:column;gap:8px;position:relative;isolation:isolate;padding-bottom:8px;max-width:560px;
+  --c:var(--heat1);--c-ink:var(--on-heat1)}
+.vent[data-tier="1"],.icon-tier[data-tier="1"]{--c:var(--heat2);--c-ink:var(--on-heat)}
+.vent[data-tier="2"],.icon-tier[data-tier="2"]{--c:var(--heat3);--c-ink:var(--on-heat)}
+.vent[data-tier="3"],.icon-tier[data-tier="3"]{--c:var(--heat4);--c-ink:var(--on-heat)}
+.vent.boss{--c:var(--boss);--c-ink:var(--on-boss)}
+.vent.raid::before{content:"";position:absolute;inset:0 calc(-1 * max(16px,env(safe-area-inset-left,0px)));z-index:-1;background:linear-gradient(180deg,var(--boss-soft) 0,transparent 62%);pointer-events:none}
+.flash-ov{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6;border-radius:16px}
+.vtop{display:grid;gap:7px;flex:none;min-width:0}
+.banner{border-radius:12px;padding:6px 10px;font-size:12px;line-height:1.4;display:flex;gap:8px;align-items:flex-start}
+.banner > .ic{width:20px;height:20px}
+.banner b{font-size:13px}
+.banner.off{background:var(--track);color:var(--ink)}
+.banner.net{background:color-mix(in srgb,var(--warn) 16%,transparent);border:1px solid color-mix(in srgb,var(--warn) 50%,transparent)}
+.banner.net > .ic{color:var(--warn)}
+.plate{background:var(--plate);color:var(--plate-ink);border-radius:14px;padding:8px 10px 12px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;position:relative;overflow:hidden}
+.plate::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:repeating-linear-gradient(135deg,var(--heat1) 0 8px,transparent 8px 16px)}
+.plate .nm{background:none;border:0;padding:0;cursor:pointer;color:inherit;font-weight:900;font-size:17px;line-height:1.35;display:flex;gap:6px;align-items:center;min-width:0;text-align:left}
+.plate .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.plate .nm i{font-style:normal;color:var(--plate-muted);font-size:12px;font-weight:500;flex:none;display:inline-flex;align-items:center;gap:1px}
+.plate .meta{font-size:12px;color:var(--plate-muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+.plate .meta b{font-family:var(--f-num);font-weight:400;color:var(--plate-ink);font-size:13px}
+.plate .meta .stale{color:var(--bad);font-weight:700}
+.plate .meta .sim{border:1px dashed var(--plate-muted);border-radius:999px;padding:0 6px;font-size:11px}
+.star{background:none;border:1px solid color-mix(in srgb,var(--plate-ink) 30%,transparent);color:var(--heat1);border-radius:8px;width:36px;height:30px;cursor:pointer;display:grid;place-items:center;padding:0;justify-self:end}
+.star .ic{width:19px;height:19px}
+.conn{font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px;justify-self:end;color:var(--plate-muted);white-space:nowrap}
+.conn::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.conn.off::before,.conn.demo::before{display:none} .conn.off{color:var(--warn)}
+.pill{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap;background:var(--ok);color:var(--plate)}
+.pill.out{background:var(--bad);color:var(--on-heat)} .pill.mid{background:var(--heat1);color:var(--on-heat1)} .pill.na{background:var(--lock);color:var(--plate)}
+.modebar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.seg2{display:grid;grid-template-columns:1fr 1fr;background:var(--track);border-radius:11px;padding:3px;gap:3px}
+.seg2 button{border:0;background:none;border-radius:8px;padding:6px 4px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap}
+.seg2 button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px color-mix(in srgb,var(--lo) 18%,transparent)}
+.seg2 button:disabled{cursor:not-allowed;opacity:.55}
+.avail{display:flex;gap:10px;font-size:12px;color:var(--muted);white-space:nowrap}
+.avail b{font-family:var(--f-num);font-weight:400;font-size:20px;color:var(--ink);margin-left:3px;vertical-align:-2px}
+.avail b.z{color:var(--bad)}
+.locline{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.locline .note{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.xp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;font-size:12px;background:none;border:0;padding:0;cursor:pointer;text-align:left;width:100%}
+.xp .t{font-weight:900;font-size:13px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.xp .t::before{content:"";width:14px;height:14px;background:var(--heat2);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.bar{height:8px;background:var(--track);border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--heat1),var(--heat2));transition:width .4s ease}
+.xp .n{font-family:var(--f-num);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* boss bar */
+.bosspill{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:8px;align-items:center;border:1.5px solid var(--boss);background:var(--boss-soft);color:var(--boss);
+  border-radius:12px;padding:5px 10px;cursor:pointer;font-size:12px;font-weight:700;text-align:left;width:100%}
+.bico{position:relative;width:26px;height:22px;display:block}
+.bico > svg{width:100%;height:100%;display:block}
+.bico .dmg{position:absolute;right:-12px;top:-10px;font-family:var(--f-num);font-weight:400;font-size:15px;color:var(--heat3);opacity:0;pointer-events:none;text-shadow:0 1px 0 var(--surface)}
+.hp20{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:2px}
+.hp20 i{height:7px;border-radius:2px;background:var(--boss)}
+.hp20 i.down{background:color-mix(in srgb,var(--boss) 20%,transparent)}
+.bossmore{border:1.5px solid var(--boss);border-top:0;margin-top:-10px;padding:12px 10px 8px;border-radius:0 0 12px 12px;background:var(--surface);display:grid;gap:6px;font-size:12px}
+.bossmore .row{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.bossmore .row b{font-family:var(--f-num);font-weight:400;color:var(--boss)}
+.fighters{display:flex;gap:4px;flex-wrap:wrap}
+.fighters span{font-size:11px;border-radius:999px;padding:0 8px;background:var(--bg);font-variant-numeric:tabular-nums}
+.fighters span.me{background:var(--boss);color:var(--on-boss);font-weight:700}
+.bfill{fill:var(--boss)} .beye{fill:var(--hi)} .bpup{fill:var(--plate)}
+.bbrow{stroke:var(--plate);stroke-width:3;stroke-linecap:round}
+
+/* arena + tire button */
+.arena{flex:1 1 0;min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.lvl{display:flex;gap:10px;align-items:baseline;justify-content:center;min-height:32px;flex:none}
+.lvl .lv{font-family:var(--f-num);font-size:28px;line-height:1;color:var(--c)}
+.vent[data-tier="0"]:not(.boss) .lvl .lv{color:color-mix(in srgb,var(--heat1) 70%,var(--ink))}
+.lvl .tn{font-weight:900;font-size:16px;letter-spacing:.12em}
+.vent.boss .lvl .tn{font-size:13px;letter-spacing:.04em}
+.wheelbox{flex:1 1 0;min-height:110px;width:100%;container-type:size;display:grid;place-items:center}
+.wheel{--a:0deg;--f:0;position:relative;width:min(244px,94cqw,94cqh);aspect-ratio:1;container-type:inline-size}
+.tire{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(transparent 0 var(--a),var(--track) var(--a)),conic-gradient(var(--heat1) 0 144deg,var(--heat2) 0 252deg,var(--heat3) 0);
+  -webkit-mask:radial-gradient(closest-side,transparent 79%,#000 80%),repeating-conic-gradient(transparent 0 2.6deg,#000 2.6deg 36deg);-webkit-mask-composite:source-in;
+  mask:radial-gradient(closest-side,transparent 79%,#000 80%),repeating-conic-gradient(transparent 0 2.6deg,#000 2.6deg 36deg);mask-composite:intersect}
+.vent[data-tier="3"] .tire{background:conic-gradient(var(--heat4) 0 360deg)}
+.fuse{position:absolute;inset:-6%;border-radius:50%;
+  background:conic-gradient(var(--fuse-c,var(--heat2)) 0 calc(var(--f) * 360deg),color-mix(in srgb,var(--line) 70%,transparent) 0);
+  -webkit-mask:radial-gradient(closest-side,transparent 94%,#000 95%);mask:radial-gradient(closest-side,transparent 94%,#000 95%)}
+.wheel.fuse-warn{--fuse-c:var(--heat3)}
+.wheel.fuse-warn .fuse{animation:blink .32s steps(2,jump-none) infinite}
+@keyframes blink{50%{opacity:.3}}
+.core{position:absolute;inset:13%;border-radius:50%;border:0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;z-index:1;padding:0;
+  background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--c) 62%,var(--hi)) 0,var(--c) 55%,color-mix(in srgb,var(--c) 72%,var(--lo)) 100%);
+  color:var(--c-ink);display:grid;place-content:center;justify-items:center;gap:0;
+  box-shadow:0 8px 0 color-mix(in srgb,var(--c) 55%,var(--lo));transition:background .3s ease}
+.core.down{box-shadow:0 3px 0 color-mix(in srgb,var(--c) 55%,var(--lo));translate:0 4px}
+.core .face{width:27cqw;height:27cqw}
+.core .face.sm{width:16cqw;height:16cqw}
+.core .n{font-family:var(--f-num);font-size:17cqw;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+.core .n.long{font-size:12.5cqw}
+.core .u{font-weight:900;font-size:max(11px,6.4cqw);letter-spacing:.14em;line-height:1.3}
+.core .ic{width:12cqw;height:12cqw}
+.core .ic.big{width:17cqw;height:17cqw}
+.wheel.cool .tire,.wheel.lock .tire{background:conic-gradient(transparent 0 var(--a),var(--track) var(--a)),
+    repeating-linear-gradient(135deg,var(--lock) 0 6px,color-mix(in srgb,var(--lock) 45%,var(--track)) 6px 12px)}
+.wheel.lock .tire{--a:0deg}
+.wheel.cool .core,.wheel.lock .core{--c:var(--lock);--c-ink:var(--on-heat);cursor:not-allowed}
+.wheel.cool .fuse,.wheel.lock .fuse{opacity:0}
+.wheel.cool .core .ic{animation:charge 1.2s ease-in-out infinite}
+@keyframes charge{50%{opacity:.45}}
+.wheel.off{filter:grayscale(1)}
+.fxc{position:absolute;inset:-45%;width:190%;height:190%;pointer-events:none;z-index:2}
+.wheel[data-idle="0"] .core{animation:breathe 1.6s ease-in-out infinite}
+.wheel[data-idle="1"] .core{animation:breathe .9s ease-in-out infinite}
+.wheel[data-idle="2"] .core{animation:tremble .14s linear infinite}
+.wheel[data-idle="3"] .core{animation:tremble2 .09s linear infinite,glowp .6s ease-in-out infinite}
+@keyframes breathe{50%{scale:1.03}}
+@keyframes tremble{25%{translate:1.5px -1px}50%{translate:-1.5px 1px}75%{translate:1px 1.5px}}
+@keyframes tremble2{25%{translate:3px -2px}50%{translate:-3px 2px}75%{translate:2px 3px}}
+@keyframes glowp{50%{box-shadow:0 8px 0 color-mix(in srgb,var(--c) 55%,var(--lo)),0 0 28px 8px color-mix(in srgb,var(--heat4) 60%,transparent)}}
+.hint{margin:0;font-size:13px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums;min-height:2.9em;flex:none;line-height:1.45}
+.hint b{color:var(--ink)}
+.stamp{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%) rotate(-8deg);pointer-events:none;z-index:5;white-space:nowrap;
+  font-weight:900;font-size:30px;color:var(--c);padding:2px 14px;border:4px solid var(--c);border-radius:10px;background:color-mix(in srgb,var(--bg) 85%,transparent);opacity:0}
+.stamp.nuke{font-size:40px;border-width:6px;color:var(--heat4);border-color:var(--heat4)}
+.flychip{position:absolute;left:50%;top:50%;translate:-50% -50%;font-family:var(--f-num);font-size:28px;color:var(--c);z-index:4;pointer-events:none;white-space:nowrap;text-shadow:0 2px 0 var(--bg),0 0 10px var(--bg)}
+
+/* result card */
+.result{width:100%;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 12px;display:grid;gap:7px;
+  box-shadow:0 10px 24px -14px color-mix(in srgb,var(--lo) 40%,transparent)}
+.r-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.r-lv{font-family:var(--f-num);font-size:26px;line-height:1;color:var(--heat2)}
+.r-tn{font-weight:900;font-size:15px;display:inline-flex;gap:4px;align-items:center}
+.r-tn svg{width:24px;height:24px;color:var(--heat2)}
+.r-new{margin-left:auto;font-size:11px;font-weight:900;color:var(--on-heat);background:var(--heat3);padding:2px 8px;border-radius:5px;letter-spacing:.06em}
+.r-ok{font-weight:700;font-size:13px;color:var(--ok);display:flex;gap:6px;align-items:center}
+.r-ok .ic{width:18px;height:18px}
+.r-ok.no,.r-ok.wait{color:var(--muted)} .r-ok.local{color:var(--warn)} .r-ok.bad{color:var(--bad)}
+.r-gain{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.r-gain li{background:var(--bg);border-radius:10px;padding:5px 8px;font-size:11px;color:var(--muted);display:grid;line-height:1.3;min-width:0}
+.r-gain b{font-family:var(--f-num);font-weight:400;font-size:16px;color:var(--ink);white-space:nowrap}
+.r-gain small{font-size:10.5px;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mspin{width:14px;height:14px;border-radius:50%;border:2.5px solid var(--track);border-top-color:var(--heat2);animation:spin .8s linear infinite;flex:none}
+
+/* nearby rail */
+.rail-wrap{flex:none;display:grid;gap:4px;min-width:0}
+.rail-h{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);font-weight:700}
+.rail{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+.rail::-webkit-scrollbar{display:none}
+.card{flex:none;width:156px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:7px 9px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 8px;text-align:left;cursor:pointer;align-items:center}
+.card.hl{border:2px solid var(--ok);padding:6px 8px}
+.card .cn{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.card .cd{font-size:11px;color:var(--muted);grid-column:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .cd em{font-style:normal;color:var(--ok);font-weight:700}
+.card .cnt{grid-row:1 / span 2;grid-column:2}
+.cnt{font-family:var(--f-num);font-size:15px;min-width:36px;height:32px;padding:0 5px;display:grid;place-items:center;border-radius:9px;color:var(--on-heat);font-variant-numeric:tabular-nums}
+.cnt.s0{background:var(--bad)} .cnt.s1{background:var(--heat1);color:var(--on-heat1)} .cnt.s2{background:var(--ok)} .cnt.na{background:var(--track);color:var(--muted)}
+.skel{background:var(--skel);border-radius:12px;height:50px;width:156px;flex:none}
+
+/* ---------- 附近 ---------- */
+.near-grid{display:grid;gap:12px}
+.ntop{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-bottom:8px}
+@media (min-width:600px){.ntop{grid-template-columns:minmax(0,1fr) 220px}}
+.search{position:relative}
+.search > .ic{position:absolute;left:12px;top:50%;translate:0 -50%;color:var(--muted);pointer-events:none}
+.search input{width:100%;font-size:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px 8px 38px}
+.search input::placeholder{color:var(--muted)}
+.results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;list-style:none;margin:0;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:min(360px,60vh);overflow-y:auto}
+.results li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer}
+.results li[aria-selected="true"],.results li:hover{background:var(--bg)}
+.results .nm{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.results .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.results .none{display:block;color:var(--muted);font-size:13px;cursor:default}
+.results .cnt{height:28px;font-size:13px}
+.results .cnt small,.srow .cnt small{font-family:var(--f-body);font-weight:500;font-size:10px;margin-right:2px}
+.demo-strip{font-size:12px;border-radius:8px;padding:4px 10px;margin-bottom:8px;background:color-mix(in srgb,var(--you) 12%,transparent);color:var(--ink)}
+.map{position:relative;height:clamp(280px,50dvh,560px);overflow:hidden;border-radius:14px;background-color:var(--map-bg);
   background-image:linear-gradient(var(--map-grid) 1px,transparent 1px),linear-gradient(90deg,var(--map-grid) 1px,transparent 1px);background-size:64px 64px;
   touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 .map.dragging{cursor:grabbing}
 .layer{position:absolute;inset:0;transform-origin:0 0}
 .tiles{position:absolute;inset:0;filter:var(--tile-filter)}
 .tiles img{position:absolute;width:256px;height:256px;max-width:none;pointer-events:none}
-.map svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.map svg.ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .fence{fill:color-mix(in srgb,var(--you) 12%,transparent);stroke:var(--you);stroke-width:2;stroke-dasharray:6 5}
 .mk{position:absolute;transform:translate(-50%,-50%);min-width:30px;height:30px;padding:0 7px;border-radius:15px;border:2px solid var(--surface);
-  font-family:var(--f-num);font-weight:700;font-size:14px;line-height:26px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;color:var(--on-heat)}
-.mk.s0{background:var(--bad)} .mk.s1{background:var(--heat1);color:var(--on-heat1)} .mk.s2{background:var(--ok)}
+  font-family:var(--f-num);font-weight:400;font-size:13px;line-height:26px;text-align:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);z-index:3;color:var(--on-heat)}
+.mk.s0{background:var(--bad)} .mk.s1{background:var(--heat1);color:var(--on-heat1)} .mk.s2{background:var(--ok)} .mk.sx{background:var(--lock)}
+.mk.fav{box-shadow:0 0 0 3px var(--heat1),0 2px 6px rgba(0,0,0,.25)}
 .mk.sel{z-index:4;outline:3px solid var(--ink);outline-offset:1px;transform:translate(-50%,-50%) scale(1.15)}
 .mk.sel::before{content:attr(data-name);position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;
   font-family:var(--f-body);font-size:12px;font-weight:700;line-height:1.4;padding:2px 8px;border-radius:6px;background:var(--ink);color:var(--surface);pointer-events:none}
@@ -72,141 +276,224 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
 .you{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--you);border:3px solid var(--surface);
   box-shadow:0 0 0 7px color-mix(in srgb,var(--you) 25%,transparent);cursor:grab;touch-action:none;z-index:2}
 .you.sim{background:color-mix(in srgb,var(--you) 30%,transparent);border:3px dashed var(--you);box-shadow:none}
+.dots{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .map-ctrl{position:absolute;right:10px;top:10px;display:grid;gap:6px;z-index:6}
-.map-ctrl button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:18px;font-weight:700;display:grid;place-items:center}
-.map-badge{position:absolute;left:10px;bottom:10px;pointer-events:none;max-width:calc(100% - 20px);z-index:6;font-size:12px;line-height:1.45;padding:6px 10px;border-radius:8px;
+.map-ctrl button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center;padding:0;color:var(--ink)}
+.map-ctrl .ic{width:20px;height:20px}
+.map-badge{position:absolute;left:10px;bottom:10px;pointer-events:none;max-width:calc(100% - 20px);z-index:6;font-size:12px;line-height:1.45;padding:5px 10px;border-radius:8px;
   background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line)}
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--muted);align-items:center}
-.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:5px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-1px;margin-right:5px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
+.panel h2{margin:0;font-weight:900;font-size:17px}
+.stabs{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.stabs button{border:1px solid var(--line);background:none;border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer;color:var(--muted);display:inline-flex;gap:4px;align-items:center}
+.stabs button .ic{color:var(--heat1)}
+.stabs button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:700}
+.stabs .note{margin-left:auto}
+.slist{list-style:none;margin:0;padding:0;display:grid}
+.slist h3{font-size:12px;color:var(--muted);font-weight:700;margin:8px 4px 2px;letter-spacing:.06em}
+.srow{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:7px 6px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;cursor:pointer;border-radius:0}
+.srow.cur{background:color-mix(in srgb,var(--ok) 10%,transparent);border-radius:10px}
+.srow:disabled{cursor:default}
+.srow .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.srow .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.srow .nm small em{font-style:normal;color:var(--ok);font-weight:700}
+.srow .nm small .bt{color:var(--boss);font-weight:700}
+.srow .cnt{height:30px}
+.srow .ret{font-size:11px;color:var(--muted);text-align:right;min-width:34px;line-height:1.2}
+.srow .ret b{display:block;font-family:var(--f-num);font-weight:400;font-size:13px;color:var(--ink)}
+@media (min-width:900px){
+  .near-grid{grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);align-items:start}
+  .map{height:calc(100dvh - 210px);min-height:420px}
+  .near-list{max-height:calc(100dvh - 110px);overflow-y:auto}
+}
 
-/* station sign */
-.sign{display:grid;gap:12px}
-.sign select{width:100%;font-family:var(--f-display);font-weight:700;font-size:17px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.avail{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.avail div{background:var(--bg);border-radius:10px;padding:8px 12px;display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.avail span{font-size:13px;color:var(--muted)}
-.avail b{font-family:var(--f-num);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
-.zero{color:var(--bad)} .okv{color:var(--ok)}
-.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;flex-wrap:wrap}
-.seg button{border:0;background:none;border-radius:7px;padding:7px 12px;cursor:pointer;font-size:14px;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.seg button:disabled{cursor:not-allowed;opacity:.5}
-.typeseg{display:grid;grid-template-columns:1fr 1fr;width:100%}
-.loc{background:var(--bg);border-radius:10px;padding:10px 12px;display:grid;gap:8px}
-.loc-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.loc-row b{font-family:var(--f-num);font-size:18px;font-variant-numeric:tabular-nums}
-.pill{font-size:12px;font-weight:700;border-radius:999px;padding:2px 10px;background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
-.pill.out{background:color-mix(in srgb,var(--bad) 15%,transparent);color:var(--bad)}
-.pill.mid{background:color-mix(in srgb,var(--heat1) 22%,transparent);color:var(--ink)}
-
-/* stage */
-.stage{display:grid;justify-items:center;gap:12px;padding-block:14px 4px;position:relative}
-.readout{text-align:center;display:grid;gap:2px;min-height:118px;align-content:center}
-.big{font-family:var(--f-num);font-weight:700;font-size:clamp(52px,15vw,80px);line-height:1;font-variant-numeric:tabular-nums}
-.sub{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
-.tier{font-family:var(--f-display);font-weight:900;font-size:15px;letter-spacing:.1em}
-.btnwrap{position:relative;width:min(62vw,220px);aspect-ratio:1;max-width:100%}
-.btnwrap canvas{position:absolute;inset:-40%;width:180%;height:180%;pointer-events:none}
-.anger{--face:var(--heat1);--face-ink:var(--on-heat1);--glow:0;
-  position:absolute;inset:0;border-radius:50%;border:0;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
-  background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--face) 70%,#fff) 0,var(--face) 55%,color-mix(in srgb,var(--face) 75%,#000) 100%);
-  color:var(--face-ink);display:grid;place-content:center;gap:2px;
-  box-shadow:0 10px 0 color-mix(in srgb,var(--face) 60%,#000),0 0 calc(var(--glow)*1px) color-mix(in srgb,var(--face) 80%,transparent);
-  transition:transform .06s ease,box-shadow .06s ease,background .3s ease}
-.anger.down{transform:translateY(7px) scale(.985);box-shadow:0 3px 0 color-mix(in srgb,var(--face) 60%,#000),0 0 calc(var(--glow)*1.4px) color-mix(in srgb,var(--face) 85%,transparent)}
-.anger .face{font-size:clamp(50px,14vw,66px);line-height:1}
-.anger .cta{font-family:var(--f-display);font-weight:900;font-size:17px;letter-spacing:.14em}
-.anger[data-tier="1"]{--face:var(--heat2);--face-ink:var(--on-heat)}
-.anger[data-tier="2"]{--face:var(--heat3);--face-ink:var(--on-heat)}
-.anger[data-tier="3"]{--face:var(--heat4);--face-ink:var(--on-heat)}
-.anger[data-locked="true"]{--face:var(--lock);--face-ink:var(--on-heat);--glow:0}
-.combo{width:100%;max-width:360px;display:grid;gap:6px}
-.bar{height:10px;background:var(--track);border-radius:999px;overflow:hidden}
-.bar i{display:block;height:100%;width:0;border-radius:inherit}
-.bar.timer i{background:var(--heat2)}
-.bar.lvl i{background:linear-gradient(90deg,var(--heat1),var(--heat2),var(--heat3));transition:width .12s ease}
-.combo p{margin:0;font-size:13px;text-align:center;font-variant-numeric:tabular-nums}
-.msg{min-height:1.6em;font-size:14px;font-weight:700;text-align:center;margin:0}
-.msg.warn{color:var(--bad)} .msg.good{color:var(--ok)}
-.burst{position:absolute;top:30%;left:50%;transform:translate(-50%,-50%) scale(.6);opacity:0;pointer-events:none;white-space:nowrap;
-  font-family:var(--f-display);font-weight:900;font-size:26px;color:var(--heat3);text-shadow:0 2px 0 var(--surface),0 0 18px var(--surface);z-index:2}
-.burst.show{animation:burst 1.1s ease-out forwards}
-@keyframes burst{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}70%{opacity:1;transform:translate(-50%,-80%) scale(1)}100%{opacity:0;transform:translate(-50%,-110%) scale(1)}}
-.shake{animation:shake .35s linear}
-@keyframes shake{0%,100%{transform:none}20%{transform:translate(-6px,2px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-4px,3px)}80%{transform:translate(3px,-2px)}}
-
-/* lists */
-.hist{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:2px}
-.hist li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:7px 4px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+/* ---------- 戰績 ---------- */
+.rec-grid,.info-grid{display:grid;gap:12px;align-content:start}
+@media (min-width:900px){.rec-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);align-items:start}.rec-side{display:grid;gap:12px}.info-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+.hero{background:var(--plate);color:var(--plate-ink);border-radius:16px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:center}
+.crest{grid-row:span 3;width:64px;height:72px;font-weight:900;font-size:26px;background:linear-gradient(160deg,var(--heat1),var(--heat2) 55%,var(--heat3));clip-path:polygon(50% 0,100% 22%,100% 70%,50% 100%,0 70%,0 22%);display:grid;place-items:center;color:var(--on-heat)}
+.hero .k{font-size:11px;color:var(--plate-muted);letter-spacing:.1em;font-weight:700}
+.hero .ttl{font-weight:900;font-size:24px;line-height:1.1}
+.hero .bar{background:color-mix(in srgb,var(--plate-ink) 18%,transparent)}
+.hero .nx{font-size:12px;color:var(--plate-muted);grid-column:1 / -1;font-variant-numeric:tabular-nums}
+.mystats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mystats div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0}
+.mystats span{display:block;font-size:11px;color:var(--muted)}
+.mystats b{display:block;font-family:var(--f-num);font-weight:400;font-size:20px;line-height:1.25}
+.mystats small{font-size:11px;color:var(--muted)}
+.sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin:4px 2px 0}
+.sec-h h2{margin:0;font-weight:900;font-size:17px}
+.bwall{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
+.bcat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px;display:grid;gap:6px;align-content:start}
+.bcat h3{margin:0;font-size:15px;font-weight:900;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.bcat h3 small{font-size:12px;color:var(--muted);font-weight:500}
+.bgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.bdg{--metal:var(--lock);--bf-fill:var(--metal);--bf-inner:var(--plate);--bf-dash:none;--pic:var(--metal);
+  display:grid;justify-items:center;align-content:start;text-align:center;gap:3px;min-width:0;padding:4px 2px}
+.bdg.m-bronze{--metal:var(--bronze)} .bdg.m-silver{--metal:var(--silver)} .bdg.m-gold{--metal:var(--gold)}
+.bdg.locked{--metal:var(--muted);--bf-fill:transparent;--bf-inner:var(--track);--bf-dash:5 4;--pic:var(--muted)}
+.bdg.na{opacity:.6}
+.bdg .bart{width:58px;height:64px;color:var(--pic)}
+.bdg b{font-size:12.5px;font-weight:900;line-height:1.3}
+.bdg .cond{font-size:11px;color:var(--muted);line-height:1.35}
+.bdg .st{font-size:11px;font-weight:700;display:flex;gap:5px;align-items:center;justify-content:center;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.bdg.locked .st{color:var(--muted)}
+.mt{border:2px solid var(--metal);border-radius:5px;padding:0 5px;font-size:10.5px;line-height:1.4;color:var(--ink)}
+.pips{display:flex;gap:3px}
+.pips i{width:7px;height:7px;border-radius:50%;background:var(--track)}
+.pips i.b{background:var(--bronze)} .pips i.s{background:var(--silver)} .pips i.g{background:var(--gold)}
+.bprog{width:78%;height:5px;background:var(--track);border-radius:3px;overflow:hidden}
+.bprog i{display:block;height:100%;background:var(--heat2);border-radius:inherit}
+.needbe{font-size:10px;font-weight:700;color:var(--boss);border:1px solid var(--boss);border-radius:4px;padding:0 4px;line-height:1.5}
+.hist{list-style:none;margin:8px 0 0;padding:0;display:grid}
+.hist li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:7px 2px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 .hist li:last-child{border-bottom:0}
-.hist time{font-size:12px;color:var(--muted);font-family:var(--f-num)}
-.hist .v{font-family:var(--f-num);font-weight:700}
-.hist .v small{font-family:var(--f-body);font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
-.tag{font-size:11px;border-radius:999px;padding:1px 8px;white-space:nowrap}
-.tag.in{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
-.tag.no{background:var(--bg);color:var(--muted)}
-.empty{font-size:13px;color:var(--muted);margin:0}
+.hist li.one{grid-template-columns:1fr;border:0}
+.hist time{font-family:var(--f-num);font-size:11px;color:var(--muted);white-space:nowrap}
+.hist .l1{font-size:13px;font-weight:700;min-width:0}
+.hist .l1 small{display:block;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap;max-width:46vw;overflow:hidden;text-overflow:ellipsis;justify-self:end}
+.tag.in{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.tag.no{background:var(--track);color:var(--muted)}
+.tag.boss{background:color-mix(in srgb,var(--boss) 18%,transparent);color:var(--boss)}
 
-/* boss */
-.boss{border-color:color-mix(in srgb,var(--boss) 45%,var(--line))}
+/* ---------- 站況 ---------- */
+.unitrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:7px;padding:5px 11px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+@media (max-width:420px){.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}}
+.stat{background:var(--bg);border-radius:10px;padding:8px 10px;min-width:0}
+.stat span{display:block;font-size:12px;color:var(--muted)}
+.stat b{display:block;font-family:var(--f-num);font-weight:400;font-size:clamp(19px,5vw,24px);font-variant-numeric:tabular-nums;line-height:1.25;overflow-wrap:anywhere}
+.stat small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.explain{font-size:13px;color:var(--muted);margin:10px 0 0;max-width:62ch}
 .boss-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.clock{font-family:var(--f-num);font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;color:var(--boss)}
-.hp{margin-top:12px;display:grid;gap:6px}
-.hp .bar{height:16px}
-.hp .bar i{background:var(--boss);transition:width .3s ease}
+.clock{font-family:var(--f-num);font-size:26px;font-variant-numeric:tabular-nums;color:var(--boss)}
+.hp{margin-top:10px;display:grid;gap:6px}
+.hp .hp20 i{height:12px}
 .hp-row{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-variant-numeric:tabular-nums;flex-wrap:wrap}
-.hp-row b{font-family:var(--f-num);font-size:16px}
-.you-box{margin-top:12px;background:var(--bg);border-radius:10px;padding:10px 12px;font-size:14px}
+.hp-row b{font-family:var(--f-num);font-weight:400;font-size:15px}
+.you-box{margin-top:10px;background:var(--bg);border-radius:10px;padding:8px 12px;font-size:14px}
 .you-box b{color:var(--boss)}
 .joiners{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
 .joiners span{font-size:12px;background:var(--bg);border-radius:999px;padding:2px 9px;font-variant-numeric:tabular-nums}
 .joiners span.me{background:color-mix(in srgb,var(--boss) 22%,transparent);font-weight:700}
-.boss-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
-.result{margin-top:12px;border-radius:10px;padding:12px;background:color-mix(in srgb,var(--boss) 12%,var(--bg))}
-.result b{font-family:var(--f-display);font-weight:900;font-size:16px;display:block}
+.boss-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.bresult{margin-top:10px;border-radius:10px;padding:10px 12px;background:color-mix(in srgb,var(--boss) 12%,var(--bg))}
+.bresult b{font-weight:900;font-size:16px;display:block}
+.rules{margin:8px 0 0;padding-left:1.2em;display:grid;gap:4px;font-size:14px;max-width:62ch}
+.settings{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
 
-/* stats */
-.unitrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
-@media (max-width:420px){.stats{grid-template-columns:1fr 1fr}.stats .stat:last-child{grid-column:1/-1}}
-.stat{background:var(--bg);border-radius:10px;padding:10px 12px;min-width:0}
-.stat span{display:block;font-size:12px;color:var(--muted)}
-.stat b{display:block;font-family:var(--f-num);font-size:clamp(20px,5.5vw,26px);font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
-.stat small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.explain{font-size:13px;color:var(--muted);margin:12px 0 0;max-width:62ch}
-.boot{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 94%,transparent);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+/* ---------- station sheet ---------- */
+dialog.sheet{position:fixed;inset:auto 0 0 0;margin:0 auto;width:min(560px,100%);max-width:100%;max-height:min(82dvh,680px);height:auto;border:0;border-radius:20px 20px 0 0;padding:0;
+  background:var(--surface);color:var(--ink);box-shadow:0 -12px 32px -12px rgba(0,0,0,.4)}
+dialog.sheet[open]{display:flex;flex-direction:column}
+dialog.sheet::backdrop{background:rgb(0 0 0 / .45)}
+.sheet-in{display:flex;flex-direction:column;min-height:0;flex:1;padding:6px 14px calc(12px + env(safe-area-inset-bottom,0px))}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 8px;flex:none}
+.sheet-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex:none}
+.sheet-h h2{margin:0;font-size:17px;font-weight:900}
+.xbtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:none;cursor:pointer;display:grid;place-items:center;padding:0;color:var(--ink)}
+.sheet .search{flex:none;margin-bottom:4px}
+.sheet .slist{overflow-y:auto;min-height:0;flex:1;overscroll-behavior:contain}
+
+/* ---------- boot ---------- */
+.boot{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:color-mix(in srgb,var(--bg) 94%,transparent);padding-inline:16px}
 .boot-card{display:grid;justify-items:center;gap:10px;text-align:center;max-width:320px}
-.boot-card b{font-family:var(--f-display);font-weight:900;font-size:18px}
+.boot-card b{font-weight:900;font-size:18px}
 .boot-card p{margin:0;font-size:13px;color:var(--muted)}
 .spin{width:36px;height:36px;border-radius:50%;border:4px solid var(--track);border-top-color:var(--heat2);animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.dots{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.search{position:relative;margin-bottom:10px}
-.search input{width:100%;font-size:16px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.search input::placeholder{color:var(--muted)}
-.results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;list-style:none;margin:0;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;
-  box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:min(360px,60vh);overflow-y:auto}
-.results li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer}
-.results li[aria-selected="true"],.results li:hover{background:var(--bg)}
-.results .nm{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.results .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
-.results .none{display:block;color:var(--muted);font-size:13px;cursor:default}
-.favs{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
-.favs button{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;text-align:left;background:var(--bg);border:1px solid transparent;border-radius:10px;padding:8px 10px;cursor:pointer}
-.favs button.cur{border-color:var(--ink)}
-.favs .nm{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.favs .nm small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
-.cnt{font-family:var(--f-num);font-weight:700;font-size:15px;min-width:54px;text-align:center;border-radius:8px;padding:2px 6px;color:var(--on-heat);font-variant-numeric:tabular-nums}
-.cnt small{font-family:var(--f-body);font-weight:500;font-size:11px;margin-right:3px}
-.cnt.s0{background:var(--bad)} .cnt.s1{background:var(--heat1);color:var(--on-heat1)} .cnt.s2{background:var(--ok)} .cnt.na{background:var(--track);color:var(--muted)}
-.mk.sx{background:var(--lock)}
-.mk.fav{box-shadow:0 0 0 3px var(--heat1),0 2px 6px rgba(0,0,0,.25)}
-.label-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
-.label-row .label{margin:0}
-.rules{margin:8px 0 0;padding-left:1.2em;display:grid;gap:4px;font-size:14px;max-width:62ch}
-@media (prefers-reduced-motion: reduce){.spin{animation-duration:2.4s}.shake{animation:none}.burst.show{animation-duration:.01s}.anger,.bar i{transition:none}.mk.raid::after{animation:none}}
+
+@media (prefers-reduced-motion: reduce){
+  .wheel[data-idle] .core,.wheel.fuse-warn .fuse,.wheel.cool .core .ic,.mk.raid::after{animation:none}
+  .spin,.mspin{animation-duration:2.4s}
+  .core,.bar i{transition:none}
+}
 </style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- anger tiers: drawn in currentColor; cut-outs use the button colour -->
+  <symbol id="f-0" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 15l11 4M39 15l-11 4"/><circle cx="16" cy="25" r="3.2" fill="currentColor" stroke="none"/><circle cx="32" cy="25" r="3.2" fill="currentColor" stroke="none"/>
+    <path d="M15 37q9-6 18 0"/>
+    <path stroke-width="2.6" d="M36 6q3 0 3-3M43 3q0 3 3 3M46 12q-3 0-3 3M39 15q0-3-3-3"/>
+  </symbol>
+  <symbol id="f-1" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="currentColor" stroke="none" d="M24 1c4 6 7 7 5 12 4-2 4-5 4-7 4 4 4 9 0 12H15c-4-3-4-8 0-12 0 3 1 5 4 7-2-5 1-8 5-12z"/>
+    <path d="M9 21l11 5M39 21l-11 5"/><circle cx="16" cy="30" r="3" fill="currentColor" stroke="none"/><circle cx="32" cy="30" r="3" fill="currentColor" stroke="none"/>
+    <rect x="15" y="36" width="18" height="7" rx="2" stroke-width="3"/><path stroke-width="2.4" d="M21 36v7M27 36v7"/>
+  </symbol>
+  <symbol id="f-2" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="currentColor" stroke="none" d="M5 46l12-23h14l12 23z"/>
+    <path d="M24 17V5M18 17l-5-8M30 17l5-8"/><circle cx="8" cy="6" r="2.4" fill="currentColor" stroke="none"/><circle cx="40" cy="6" r="2.4" fill="currentColor" stroke="none"/>
+    <path style="stroke:var(--c)" stroke-width="3" d="M15 31l7 3M33 31l-7 3"/>
+    <circle cx="19" cy="38" r="2.6" style="fill:var(--c)" stroke="none"/><circle cx="29" cy="38" r="2.6" style="fill:var(--c)" stroke="none"/>
+  </symbol>
+  <symbol id="f-3" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="currentColor" stroke="none" d="M8 25c-6 0-6-10 1-11 0-8 10-10 14-6 3-5 14-4 14 3 8-1 10 11 3 14z"/>
+    <rect x="19" y="24" width="10" height="14" fill="currentColor" stroke="none"/>
+    <ellipse cx="24" cy="42" rx="17" ry="4.5" fill="currentColor" stroke="none"/>
+    <path style="stroke:var(--c)" stroke-width="3" d="M13 13l7 3M35 13l-7 3"/>
+    <circle cx="17" cy="19" r="2.6" style="fill:var(--c)" stroke="none"/><circle cx="31" cy="19" r="2.6" style="fill:var(--c)" stroke="none"/>
+    <path d="M3 33l-1 2M45 33l1 2M6 40H2M42 40h4"/>
+  </symbol>
+  <!-- UI icons, 24 grid -->
+  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-star-fill" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+  <symbol id="i-star-line" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path fill="currentColor" d="M12 1.5l9.5 5.3v10.4L12 22.5l-9.5-5.3V6.8z"/><path style="stroke:var(--surface)" stroke-width="3" d="M7.5 12.3l3.2 3.2 5.8-6.8"/></symbol>
+  <symbol id="i-strike" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path fill="currentColor" d="M13.5 1.5L4.5 13.5h6l-2 9 11-13h-6l2-8z"/><path d="M19 3l2.5-1.5M20.5 6.5H23M3 18l-1.5 2"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 22c-5-6-7-9.5-7-12.5a7 7 0 0 1 14 0c0 3-2 6.5-7 12.5z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-charge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="2" y="7" width="17" height="10" rx="2.5"/><rect x="19.5" y="10" width="2.5" height="4" rx="1" fill="currentColor" stroke="none"/><path fill="currentColor" stroke="none" d="M11.6 8.3l-4.4 4.6h3l-1 3.8 4.6-4.9h-3z"/></symbol>
+  <symbol id="i-typhoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="3.6"/><path d="M12 8.4C12 4.5 15 2.5 19.5 3M12 15.6c0 3.9-3 5.9-7.5 5.4"/></symbol>
+  <symbol id="i-offline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 9.3c5-4.5 13-4.5 18 0M6.3 12.8c3.3-2.8 8.1-2.8 11.4 0"/><circle cx="12" cy="17.3" r="1.8" fill="currentColor" stroke="none"/><path d="M4 3.5l16 17"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10.5" rx="2.5" fill="currentColor" stroke="none"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4-1-6 1-9z"/></symbol>
+  <symbol id="i-badge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4.5v9L12 20l-8-4.5v-9z"/><path d="M9 11l2 2 4-4"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12h14"/></symbol>
+  <symbol id="boss" viewBox="0 0 58 48">
+    <rect class="bfill" x="4" y="40" width="50" height="6" rx="3"/>
+    <rect class="bfill" x="8" y="14" width="7" height="28" rx="3"/><rect class="bfill" x="20" y="14" width="7" height="28" rx="3"/><rect class="bfill" x="31" y="14" width="7" height="28" rx="3"/><rect class="bfill" x="43" y="14" width="7" height="28" rx="3"/>
+    <rect class="bfill" x="4" y="6" width="50" height="16" rx="8"/>
+    <ellipse class="beye" cx="20" cy="14" rx="6" ry="5"/><ellipse class="beye" cx="38" cy="14" rx="6" ry="5"/>
+    <circle class="bpup" cx="21.5" cy="15" r="2.4"/><circle class="bpup" cx="36.5" cy="15" r="2.4"/>
+    <path class="bbrow" d="M13 7l10 4M45 7l-10 4"/>
+  </symbol>
+  <!-- badge frame: hexagon medal; colours come from --metal / --bf-* on the badge -->
+  <symbol id="bdg-frame" viewBox="0 0 64 70">
+    <path style="fill:var(--bf-fill);stroke:var(--metal);stroke-dasharray:var(--bf-dash)" stroke-width="3" stroke-linejoin="round" d="M32 3l27 15.5v33L32 67 5 51.5v-33z"/>
+    <path style="fill:var(--bf-inner)" d="M32 11l20 11.5v25L32 59 12 47.5v-25z"/>
+  </symbol>
+  <!-- badge pictograms, 32 grid -->
+  <symbol id="b-fire" viewBox="0 0 32 32"><path fill="currentColor" d="M16 3c3 6 8 8 8 16a8 8 0 0 1-16 0c0-5 3-7 4-10 1 3 2 4 3 5 0-4-1-7 1-11z"/><path style="fill:var(--bf-inner)" d="M16 17c2 3 4 4 3 7a3 3 0 0 1-6 0c0-2 2-4 3-7z"/></symbol>
+  <symbol id="b-volcano" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path fill="currentColor" stroke="none" d="M3 29l9-15h8l9 15z"/><path d="M16 11V4M11 11L8 6M21 11l3-5"/></symbol>
+  <symbol id="b-nuke" viewBox="0 0 32 32" fill="currentColor"><path d="M7 16c-4 0-4-7 1-8 0-5 7-6 9-3 2-3 9-2 9 3 4 0 5 7 1 8z"/><rect x="13" y="15" width="6" height="9"/><ellipse cx="16" cy="27" rx="11" ry="3"/></symbol>
+  <symbol id="b-combo" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9l6 7-6 7M12 9l6 7-6 7M20 9l6 7-6 7"/></symbol>
+  <symbol id="b-gauge" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M4 23a12 12 0 0 1 24 0"/><path d="M8 14l2 2M16 10v3M24 14l-2 2"/><path stroke-width="3.2" d="M16 23l8-9"/><circle cx="16" cy="23" r="3" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="b-clip" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="20" height="23" rx="3"/><rect x="11" y="3" width="10" height="6" rx="2" fill="currentColor" stroke="none"/><path stroke-width="3.2" d="M10 18l4 4 8-9"/></symbol>
+  <symbol id="b-strike" viewBox="0 0 32 32"><path fill="currentColor" d="M19 2L7 18h8l-3 12 15-18h-8l3-10z"/></symbol>
+  <symbol id="b-bossx" viewBox="0 0 32 32"><g fill="currentColor"><rect x="3" y="26" width="26" height="4" rx="2"/><rect x="6" y="12" width="4" height="15" rx="2"/><rect x="12.5" y="12" width="3" height="15"/><rect x="17" y="12" width="3" height="15"/><rect x="22" y="12" width="4" height="15" rx="2"/><rect x="3" y="4" width="26" height="11" rx="5.5"/></g><path style="stroke:var(--bf-inner)" stroke-width="2.4" stroke-linecap="round" d="M8 7.5l4 4M12 7.5l-4 4M20 7.5l4 4M24 7.5l-4 4"/></symbol>
+  <symbol id="b-crown" viewBox="0 0 32 32" fill="currentColor"><path d="M4 23L6 9l6 6 4-9 4 9 6-6 2 14z"/><rect x="4" y="25" width="24" height="4" rx="1.5"/></symbol>
+  <symbol id="b-bike" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="21" r="5.5"/><circle cx="24.5" cy="21" r="5.5"/><path d="M7.5 21l5-9h8.5l3.5 9M12.5 12l3.5 9 5-9M12.5 12V9.5M10.5 9.5h4.5M21 12l-1.5-4H23"/></symbol>
+  <symbol id="b-pins" viewBox="0 0 32 32"><path fill="currentColor" d="M9 21c-4-5-5-8-5-10a5 5 0 0 1 10 0c0 2-1 5-5 10zM23 17c-4-5-5-8-5-10a5 5 0 0 1 10 0c0 2-1 5-5 10z"/><circle cx="9" cy="11" r="2" style="fill:var(--bf-inner)"/><circle cx="23" cy="7" r="2" style="fill:var(--bf-inner)"/><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="1 4.5" d="M9 26q8 6 14-6"/></symbol>
+  <symbol id="b-moon" viewBox="0 0 32 32" fill="currentColor"><path d="M19 4a12 12 0 1 0 9 17A9.5 9.5 0 0 1 19 4z"/><path d="M8 4l1.2 3.3L12.5 8.5 9.2 9.7 8 13 6.8 9.7 3.5 8.5l3.3-1.2z"/></symbol>
+  <symbol id="b-cal" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="4" y="6" width="24" height="22" rx="3"/><rect x="4" y="6" width="24" height="7" rx="3" fill="currentColor" stroke="none"/><path d="M10 3v6M22 3v6"/><g fill="currentColor" stroke="none"><rect x="8" y="17" width="4.5" height="4.5" rx="1"/><rect x="14" y="17" width="4.5" height="4.5" rx="1"/><rect x="20" y="17" width="4.5" height="4.5" rx="1" opacity=".35"/></g></symbol>
+  <symbol id="b-sign" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><rect x="3" y="3" width="26" height="14" rx="3" fill="currentColor" stroke="none"/><path style="stroke:var(--bf-inner)" stroke-width="2" d="M7 14l3-3M13 14l3-3M19 14l3-3M25 14l2-2"/><path d="M16 17v12M11 29h10"/></symbol>
+  <symbol id="b-bag" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="3" y="11" width="26" height="17" rx="3" fill="currentColor" stroke="none"/><path d="M11 11V7.5A2.5 2.5 0 0 1 13.5 5h5A2.5 2.5 0 0 1 21 7.5V11"/><path style="stroke:var(--bf-inner)" stroke-width="2.2" d="M3 18h26"/><rect x="13" y="16" width="6" height="5" rx="1.2" fill="currentColor" style="stroke:var(--bf-inner)" stroke-width="1.6"/></symbol>
+  <symbol id="b-typhoon" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><circle cx="16" cy="16" r="5"/><path d="M16 11c0-5 4-7.5 10-7M16 21c0 5-4 7.5-10 7"/></symbol>
+  <symbol id="b-tap" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="16" cy="16" r="4.5" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="9.5"/><circle cx="16" cy="16" r="14" stroke-dasharray="3 4"/></symbol>
+  <symbol id="b-swap" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h22M20 4l6 6-6 6M28 22H6M12 16l-6 6 6 6"/></symbol>
+</svg>
 
 <div class="boot" id="boot" role="status" aria-live="polite">
   <div class="boot-card">
@@ -216,148 +503,205 @@ h2.ttl{margin:0;font-family:var(--f-display);font-weight:900;font-size:17px}
     <button class="ghost" id="bootSkip" hidden>先看示範資料</button>
   </div>
 </div>
-<div class="app">
-  <header>
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">原型 v1.3</span><span class="chip" id="modeChip">示範資料</span></div>
-    <div class="hdr-actions">
-      <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
-      <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
-    </div>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">v2.0</span></div>
+    <span class="chip" id="modeChip">示範資料</span>
   </header>
 
-  <div class="cols">
-    <div class="col">
-      <section class="panel" aria-label="附近站點地圖">
-        <div class="unitrow" style="margin-bottom:10px">
-          <h2 class="ttl">附近站點</h2>
-          <div class="seg" role="group" aria-label="地圖顯示">
-            <button id="tRent" data-type="rent">看借車</button>
-            <button id="tRet" data-type="ret">看還車</button>
+  <main id="main">
+    <!-- ===== 發洩 ===== -->
+    <section class="tab vent" id="tab-vent" data-tier="0" aria-label="發洩">
+      <div class="vtop">
+        <div class="banner off" id="offBanner" hidden><svg class="ic" aria-hidden="true"><use href="#i-typhoon"/></svg><span id="offText"></span></div>
+        <div class="banner net" id="netBanner" hidden><svg class="ic" aria-hidden="true"><use href="#i-offline"/></svg><span id="netText"></span></div>
+        <div class="plate">
+          <button class="nm" id="pickBtn" aria-haspopup="dialog" aria-label="換站"><span id="stName">–</span><i>換站<svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></i></button>
+          <button class="star" id="favBtn" aria-pressed="false" aria-label="加入常用"><svg class="ic" aria-hidden="true"><use href="#i-star-line"/></svg></button>
+          <div class="meta" id="plateMeta"><span id="stArea"></span><b id="distTxt">–</b><span class="pill" id="locPill">在範圍內</span><span class="sim" id="simTag" hidden>模擬位置</span><span class="stale" id="staleTag" hidden></span></div>
+          <span class="conn demo" id="conn">示範</span>
+        </div>
+        <div class="modebar">
+          <div class="seg2" role="group" aria-label="我遇到的狀況"><button class="tbtn" data-type="rent">借不到車</button><button class="tbtn" data-type="ret">還不了車</button></div>
+          <div class="avail"><span>可借<b id="rentN">0</b></span><span>可還<b id="retN">0</b></span></div>
+        </div>
+        <div class="locline" id="locLine">
+          <span class="note" id="locNote">目前是模擬位置，到「附近」拖曳藍點模擬走動，或按「用 GPS 定位」</span>
+          <button class="ghost sm" id="walkHere">走到這站旁</button>
+          <button class="ghost sm" id="useGps" hidden>用 GPS 定位</button>
+        </div>
+        <button class="xp" id="xpBar" data-goto="rec" aria-label="我的稱號與怒氣值，點一下看戰績"><span class="t" id="xpT">路過騎士</span><span class="bar"><i id="xpB" style="width:0"></i></span><span class="n" id="xpN">0/50</span></button>
+        <div id="bossBar"></div>
+      </div>
+      <div class="arena" id="arena">
+        <div class="result" id="result" hidden></div>
+        <div class="lvl" id="lvlLine"><span class="lv" id="lvTxt">Lv.0</span><span class="tn" id="tierName">準備開始</span></div>
+        <div class="wheelbox">
+          <div class="wheel" id="wheel">
+            <div class="fuse"></div><div class="tire"></div>
+            <button class="core" id="angerBtn" aria-label="按下發洩怒氣"></button>
           </div>
         </div>
-        <div class="search">
-          <input type="search" id="q" placeholder="搜尋站名或行政區，例如：市政府、板橋" autocomplete="off" enterkeyhint="search"
-            role="combobox" aria-label="搜尋站點" aria-controls="qList" aria-expanded="false" aria-autocomplete="list">
-          <ul class="results" id="qList" role="listbox" aria-label="搜尋結果" hidden></ul>
-        </div>
-        <div class="map" id="map">
-          <div class="layer" id="layer">
-            <div class="tiles" id="tiles"></div>
-            <canvas class="dots" id="dots" aria-hidden="true"></canvas>
-            <svg id="overlay" aria-hidden="true"><circle class="fence" id="fence" cx="-99" cy="-99" r="0"></circle></svg>
-            <div id="markers"></div>
-            <div class="you" id="youDot" role="img" aria-label="你的位置，可拖曳"></div>
-          </div>
-          <div class="map-ctrl">
-            <button id="zIn" aria-label="放大">＋</button>
-            <button id="zOut" aria-label="縮小">－</button>
-            <button id="toMe" aria-label="回到我的位置">◎</button>
-          </div>
-          <div class="map-badge" id="mapBadge">載入中…</div>
-        </div>
-        <div class="legend">
-          <span><i style="background:var(--bad)"></i>0</span>
-          <span><i style="background:var(--heat1)"></i>1–3</span>
-          <span><i style="background:var(--ok)"></i>4 以上</span>
-          <span><i style="background:var(--you)"></i>你：實心是 GPS，虛線是模擬位置（可拖曳）</span>
-          <span>虛線圈：選中站點的 100 公尺範圍</span>
-        </div>
-      </section>
+        <div class="stamp" id="stamp" aria-hidden="true"></div>
+        <p class="hint" id="hint"></p>
+      </div>
+      <div class="rail-wrap">
+        <div class="rail-h"><span>附近站・依距離</span><button class="link" data-goto="near">看地圖</button></div>
+        <div class="rail" id="rail"><span class="skel"></span><span class="skel"></span><span class="skel"></span></div>
+      </div>
+      <p class="sr" id="srLive" aria-live="polite"></p>
+    </section>
 
-      <section class="panel" aria-label="常用站點">
-        <div class="unitrow"><h2 class="ttl">常用站點</h2><span class="note">最多 10 站，點一下就選中</span></div>
-        <ul class="favs" id="favList"></ul>
-      </section>
+    <!-- ===== 附近 ===== -->
+    <section class="tab" id="tab-near" aria-label="附近站點" hidden>
+      <div class="near-grid">
+        <div>
+          <div class="ntop">
+            <div class="search">
+              <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+              <input type="search" id="q" placeholder="搜尋站名或行政區，例如：市政府、板橋" autocomplete="off" enterkeyhint="search"
+                role="combobox" aria-label="搜尋站點" aria-controls="qList" aria-expanded="false" aria-autocomplete="list">
+              <ul class="results" id="qList" role="listbox" aria-label="搜尋結果" hidden></ul>
+            </div>
+            <div class="seg2" role="group" aria-label="地圖顯示"><button class="tbtn" data-type="rent">看借車</button><button class="tbtn" data-type="ret">看還車</button></div>
+          </div>
+          <p class="demo-strip" id="demoStrip" hidden>示範模式：範例站點。拖曳地圖上的虛線藍點可以模擬走動。</p>
+          <div class="map" id="map">
+            <div class="layer" id="layer">
+              <div class="tiles" id="tiles"></div>
+              <canvas class="dots" id="dots" aria-hidden="true"></canvas>
+              <svg class="ov" id="overlay" aria-hidden="true"><circle class="fence" id="fence" cx="-99" cy="-99" r="0"></circle></svg>
+              <div id="markers"></div>
+              <div class="you" id="youDot" role="img" aria-label="你的位置，可拖曳"></div>
+            </div>
+            <div class="map-ctrl">
+              <button id="zIn" aria-label="放大"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg></button>
+              <button id="zOut" aria-label="縮小"><svg class="ic" aria-hidden="true"><use href="#i-minus"/></svg></button>
+              <button id="toMe" aria-label="回到我的位置"><svg class="ic" aria-hidden="true"><use href="#i-locate"/></svg></button>
+            </div>
+            <div class="map-badge" id="mapBadge">載入中…</div>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--bad)"></i>0</span>
+            <span><i style="background:var(--heat1)"></i>1–3</span>
+            <span><i style="background:var(--ok)"></i>4 以上</span>
+            <span><i style="background:var(--lock)"></i>暫停服務</span>
+            <span><i style="background:var(--you)"></i>你：實心是 GPS，虛線是模擬位置（可拖曳）</span>
+            <span>虛線圈：選中站點的 100 公尺範圍</span>
+          </div>
+        </div>
+        <div class="panel near-list">
+          <div class="stabs" role="group" aria-label="列表">
+            <button data-list="near" aria-pressed="true">附近</button>
+            <button data-list="fav" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-star-fill"/></svg>常用 <span id="favCount">0</span></button>
+            <span class="note">常用最多 10 站，只存在這支手機</span>
+          </div>
+          <ul class="slist" id="nearList"></ul>
+        </div>
+      </div>
+    </section>
 
-      <section class="panel" aria-label="發洩怒氣">
-        <div class="sign">
-          <div>
-            <div class="label-row"><p class="label">選中的站點</p><button class="ghost" id="favBtn" aria-pressed="false">☆ 加入常用</button></div>
-            <select id="stationSel" aria-label="選擇站點"></select>
+    <!-- ===== 戰績 ===== -->
+    <section class="tab" id="tab-rec" aria-label="戰績" hidden>
+      <div class="rec-grid">
+        <div class="rec-side">
+          <div class="hero">
+            <div class="crest" id="crest" aria-hidden="true">路</div>
+            <span class="k" id="heroK">稱號・怒氣值 0</span>
+            <span class="ttl" id="heroT">路過騎士</span>
+            <span class="bar"><i id="heroB" style="width:0"></i></span>
+            <span class="nx" id="heroN"></span>
           </div>
-          <div class="avail">
-            <div><span>可借車</span><b id="rentN">0</b></div>
-            <div><span>可還位</span><b id="retN">0</b></div>
+          <div class="mystats">
+            <div><span>單批最高</span><b id="mBest">–</b><small id="mBestN">還沒有紀錄</small></div>
+            <div><span>被接受</span><b id="mSends">0</b><small>批</small></div>
+            <div><span>計入需求</span><b id="mCounted">0</b><small>批</small></div>
           </div>
-          <p class="note" id="dataAge"></p>
-          <div class="loc">
-            <div class="loc-row"><span>你離這站 <b id="distTxt">–</b></span><span class="pill" id="locPill">在範圍內</span></div>
-            <div class="loc-row">
-              <span class="note" id="locNote">目前是模擬位置，不是你的真實位置。拖曳藍點模擬走動，或按「用 GPS 定位」</span>
-              <span style="display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="walkHere">走到這站旁</button><button class="ghost" id="useGps" hidden>用 GPS 定位</button></span>
+          <section class="panel" aria-label="我送出的怒氣">
+            <h2>我送出的怒氣</h2>
+            <ul class="hist" id="hist"></ul>
+            <p class="note" style="margin-top:8px">戰績存在這支手機，清除瀏覽器資料會歸零。怒氣值、稱號和徽章只算伺服器接受的批次。</p>
+          </section>
+        </div>
+        <div>
+          <div class="sec-h" style="margin-bottom:8px"><h2>徽章牆</h2><span class="note" id="bCount">已取得 0 / 16</span></div>
+          <div class="bwall" id="bwall"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 站況 ===== -->
+    <section class="tab" id="tab-info" aria-label="站況" hidden>
+      <div class="info-grid">
+        <section class="panel" aria-label="本站統計">
+          <div class="unitrow">
+            <h2 id="statTitle">本站怒氣</h2>
+            <div class="seg" role="group" aria-label="顯示方式">
+              <button id="uLevel" data-unit="level">怒氣等級</button>
+              <button id="uRaw" data-unit="raw">點擊次數</button>
             </div>
           </div>
-        </div>
-
-        <div class="stage" id="stage">
-          <div class="readout" aria-live="polite">
-            <div class="tier" id="tierName">準備開始一批</div>
-            <div class="big" id="big">0</div>
-            <div class="sub" id="sub">按下去開始連擊</div>
+          <p class="note" id="statStation" style="margin-top:4px"></p>
+          <div class="stats">
+            <div class="stat"><span id="sMineL">你的等級總和</span><b id="sMine">–</b><small id="sMineAlt"></small></div>
+            <div class="stat"><span id="sAllL">全站等級總和</span><b id="sAll">–</b><small id="sAllAlt"></small></div>
+            <div class="stat"><span>受影響人次</span><b id="sPpl">–</b><small>需求統計看這個</small></div>
           </div>
-          <div class="btnwrap">
-            <canvas id="fx" aria-hidden="true"></canvas>
-            <button class="anger" id="angerBtn" data-tier="0" aria-label="按下發洩怒氣">
-              <span class="face" id="face" aria-hidden="true">😠</span>
-              <span class="cta" id="cta">按下去</span>
-            </button>
+          <p class="explain" id="explain"></p>
+          <p class="note" id="dataAge" style="margin-top:8px"></p>
+        </section>
+
+        <section class="panel" aria-label="限時討伐" id="bossPanel"></section>
+
+        <section class="panel" aria-label="需求紀錄">
+          <h2>需求紀錄</h2>
+          <p class="note" style="margin-top:4px" id="demandNote">每場討伐結束後自動留下一筆，可以整理成陳情或報表。</p>
+          <ul class="hist" id="demand"></ul>
+        </section>
+
+        <section class="panel" aria-label="規則">
+          <h2>規則</h2>
+          <ul class="rules">
+            <li>一批連擊：每下之間不超過 3 秒。停手 3 秒就送出，等級 = log₂(這批的點擊數) 取整數。只按 1 下算誤觸，不送出、不冷卻，但會記在這支手機。</li>
+            <li>一批送出後冷卻 30 秒，換站也一樣。</li>
+            <li>每一下都要真的按，長按、按住鍵盤都不會連發；間隔不到 0.06 秒的點擊不算。</li>
+            <li>要在站點 100 公尺內才能開始一批。中途離開，這批還是能打完送出，但下一批要回到站點才能發。</li>
+            <li>只有當下站點真的沒車（或沒位）時，怒氣才會計入需求統計。</li>
+          </ul>
+          <p class="explain" id="dataNote"></p>
+        </section>
+
+        <section class="panel" aria-label="設定">
+          <h2>設定</h2>
+          <div class="settings">
+            <button class="ghost" id="soundBtn" aria-pressed="true">音效：開</button>
+            <span id="resetBox"><button class="ghost" id="resetBtn">清除我的紀錄</button></span>
           </div>
-          <div class="burst" id="burst" aria-hidden="true"></div>
-          <div class="combo">
-            <div class="bar timer" aria-hidden="true"><i id="timerBar"></i></div>
-            <p id="timerTxt">停手 3 秒，這批就會送出</p>
-            <div class="bar lvl" aria-hidden="true"><i id="lvlBar"></i></div>
-            <p id="lvlTxt">按 2 下就是 Lv.1</p>
-          </div>
-          <p class="msg" id="msg" role="status"></p>
-        </div>
-      </section>
-    </div>
+          <p class="note" style="margin-top:8px">清除會刪掉這支手機上的送出紀錄、誤觸紀錄、常用站點和徽章進度。</p>
+        </section>
+      </div>
+    </section>
+  </main>
 
-    <div class="col">
-      <section class="panel boss" aria-label="限時討伐" id="bossPanel"></section>
-
-      <section class="panel" aria-label="本站統計">
-        <div class="unitrow">
-          <h2 class="ttl" id="statTitle">本站怒氣</h2>
-          <div class="seg" role="group" aria-label="顯示方式">
-            <button id="uLevel" data-unit="level">怒氣等級</button>
-            <button id="uRaw" data-unit="raw">點擊次數</button>
-          </div>
-        </div>
-        <div class="stats">
-          <div class="stat"><span id="sMineL">你的等級總和</span><b id="sMine">–</b><small id="sMineAlt"></small></div>
-          <div class="stat"><span id="sAllL">全站等級總和</span><b id="sAll">–</b><small id="sAllAlt"></small></div>
-          <div class="stat"><span>受影響人次</span><b id="sPpl">–</b><small>需求統計看這個</small></div>
-        </div>
-        <p class="explain" id="explain"></p>
-      </section>
-
-      <section class="panel" aria-label="我送出的怒氣">
-        <h2 class="ttl" id="histTitle">我送出的怒氣</h2>
-        <ul class="hist" id="hist"></ul>
-      </section>
-
-      <section class="panel" aria-label="需求紀錄">
-        <h2 class="ttl">需求紀錄</h2>
-        <p class="note" style="margin-top:4px" id="demandNote">每場討伐結束後自動留下一筆，可以整理成陳情或報表。</p>
-        <ul class="hist" id="demand"></ul>
-      </section>
-
-      <section class="panel" aria-label="規則">
-        <h2 class="ttl">規則</h2>
-        <ul class="rules">
-          <li>一批連擊：每下之間不超過 3 秒。停手 3 秒就送出，等級 = ⌊log₂(這批的點擊數)⌋。只按 1 下算誤觸。</li>
-          <li>一批送出後冷卻 30 秒，換站也一樣。</li>
-          <li>每一下都要真的按，長按、按住鍵盤都不會連發；間隔不到 0.06 秒的點擊不算。</li>
-          <li>要在站點 100 公尺內才能開始一批。中途離開，這批還是能打完送出，但下一批要回到站點才能發。</li>
-          <li>只有當下站點真的沒車（或沒位）時，怒氣才會計入需求統計。</li>
-        </ul>
-        <p class="explain" id="dataNote"></p>
-      </section>
-    </div>
-  </div>
+  <nav class="nav" id="nav" aria-label="分頁">
+    <button data-tab="vent" aria-current="page"><svg aria-hidden="true"><use href="#i-flame"/></svg><span>發洩</span></button>
+    <button data-tab="near"><svg aria-hidden="true"><use href="#i-pin"/></svg><span>附近</span></button>
+    <button data-tab="rec"><svg aria-hidden="true"><use href="#i-badge"/></svg><span>戰績</span></button>
+    <button data-tab="info"><svg aria-hidden="true"><use href="#i-chart"/></svg><span>站況</span></button>
+  </nav>
 </div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <div class="sheet-in">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-h"><h2 id="sheetTitle">換站</h2><button class="xbtn" id="sheetClose" aria-label="關閉"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+    <div class="search"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="sq" placeholder="搜尋站名或行政區" autocomplete="off" enterkeyhint="search" aria-label="搜尋站點"></div>
+    <ul class="slist" id="sList"></ul>
+  </div>
+</dialog>
+
+<p class="toast" id="msg" role="status"></p>
 
 <script>
 (() => {
@@ -392,7 +736,10 @@ const DEMO = [
 ];
 const DEMO_YOU = {lat:25.0412, lng:121.5661};
 
-const TIERS = [{name:'不爽', face:'😠'}, {name:'冒火', face:'🔥'}, {name:'爆發', face:'🌋'}, {name:'核爆', face:'💥'}];
+const TIERS = ['不爽', '冒火', '爆發', '核爆'];
+const TIER_C = ['--heat1', '--heat2', '--heat3', '--heat4'];
+// personal title thresholds (sum of accepted batch levels)
+const TITLES = [[0, '路過騎士'], [50, '不爽騎士'], [120, '冒火騎士'], [250, '暴走騎士'], [400, '爆發騎士'], [1000, '核爆騎士']];
 const $ = id => document.getElementById(id);
 const fmt = n => n.toLocaleString('zh-TW');
 const lv = n => n < 1 ? null : 31 - Math.clz32(n);
@@ -400,7 +747,12 @@ const tierOf = l => l == null ? -1 : l >= 10 ? 3 : l >= 7 ? 2 : l >= 4 ? 1 : 0;
 const typeName = t => t === 'rent' ? '借不到車' : '還不了車';
 const hhmm = ts => { const d = new Date(ts); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); };
 const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return String(Math.floor(s / 60)).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0'); };
+const mss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2,'0'); };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ico = (id, cls = 'ic') => `<svg class="${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+const RM = () => mq.matches;
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function haversine(a, b){
   const R = 6371000, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r;
   const h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2;
@@ -420,9 +772,11 @@ function demoBase(s){
 const ZERO = {rent:{ppl:0, sends:0, lv:0, clicks:0}, ret:{ppl:0, sends:0, lv:0, clicks:0}};
 
 // ---------- state ----------
-const fresh = () => ({station:null, type:'rent', unit:'level', sound:true, you:null, speed:1, coolUntil:0, sends:{}, raids:{}, restocked:{}, demand:[], favs:[]});
+// misN / misclicks: single taps (mis-presses). They are never sent to the server and don't start a cooldown.
+const fresh = () => ({station:null, type:'rent', unit:'level', sound:true, you:null, speed:1, coolUntil:0, sends:{}, raids:{}, restocked:{}, demand:[], favs:[], misN:0, misclicks:[]});
 let st = fresh();
 try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) st = Object.assign(fresh(), s); } catch(e) {}
+if (!Array.isArray(st.misclicks)) st.misclicks = [];
 // a boss only lives 10 minutes; drop ones left running from an earlier visit
 for (const [key, r] of Object.entries(st.raids)) if (r.status === 'live' && Date.now() - (r.startedAt || 0) > RAID_MS) delete st.raids[key];
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch(e) {} };
@@ -448,17 +802,46 @@ function findSuspended(list){
 }
 const isOff = x => !!x && offPrefixes.has(x.id.slice(0, 2));
 const offCities = () => [...offPrefixes].map(p => PREFIX_CITY[p] || p);
-const cur = () => byId(st.station) || nearest()[0];
 const k = (sid, t) => sid + ':' + t;
 const avail = (s, t) => st.restocked[k(s.id, t)] ?? s[t];
 const mySends = (sid, t) => (st.sends[k(sid, t)] ||= []);
 const distTo = s => haversine(st.you, s);
-const nearest = () => stations.slice().sort((a, b) => distTo(a) - distTo(b));
+// sorted by distance; cached until you move or the station list changes (callers must not mutate it)
+let nearMemo = null;
+function nearest(){
+  if (nearMemo && nearMemo.list === stations && nearMemo.lat === st.you.lat && nearMemo.lng === st.you.lng) return nearMemo.out;
+  const out = stations.map(s => ({s, d:distTo(s)})).sort((a, b) => a.d - b.d).map(x => x.s);
+  nearMemo = {list:stations, lat:st.you.lat, lng:st.you.lng, out};
+  return out;
+}
+const cur = () => byId(st.station) || nearest()[0];
 const inRange = () => distTo(cur()) <= RADIUS;
 if (!byId(st.station)) st.station = nearest()[0].id;
+const distText = d => d < 1000 ? `${Math.round(d)} 公尺` : `${(d / 1000).toFixed(1)} 公里`;
+const distShort = d => d < 1000 ? `${Math.round(d)} m` : `${(d / 1000).toFixed(1)} km`;
 
 let combo = null, finTimer = 0, msgTimer = 0;
-function say(text, kind){ const m = $('msg'); m.textContent = text; m.className = 'msg ' + (kind || ''); clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4500); }
+let lastResult = null; // the result card of the latest batch (or mis-press)
+function say(text, kind){ const m = $('msg'); m.textContent = text; m.className = 'toast ' + (kind || ''); clearTimeout(msgTimer); msgTimer = setTimeout(() => { m.textContent = ''; }, 4500); }
+const announce = text => { $('srLive').textContent = text; };
+
+// ---------- tabs ----------
+const TABS = ['vent', 'near', 'rec', 'info'];
+let tab = 'vent';
+function setTab(name){
+  if (!TABS.includes(name)) name = 'vent';
+  tab = name;
+  for (const t of TABS) $('tab-' + t).hidden = t !== name;
+  document.querySelectorAll('#nav button').forEach(b => { if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  $('main').scrollTop = 0;
+  try { history.replaceState(null, '', name === 'vent' ? location.pathname + location.search : '#' + name); } catch(e) {}
+  // the map has no size while its tab is hidden, so draw it again once it is shown
+  if (name === 'near') renderMap();
+  if (name === 'rec') renderRec();
+}
+document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+document.addEventListener('click', e => { const g = e.target.closest('[data-goto]'); if (g) setTab(g.dataset.goto); });
+addEventListener('hashchange', () => setTab(location.hash.slice(1)));
 
 // ---------- map ----------
 const TILE = 256, DOT_Z = 14, mapEl = $('map');
@@ -471,6 +854,7 @@ const tileImgs = new Map(), markerEls = new Map();
 
 function renderMap(){
   const W = mapEl.clientWidth, H = mapEl.clientHeight, o = origin(), z = view.z;
+  if (!W || !H) return; // its tab is hidden; setTab draws it when shown
   mapEl.style.backgroundPosition = `${-o.x % 64}px ${-o.y % 64}px`;
   // tiles
   const want = new Set();
@@ -523,11 +907,11 @@ function renderMap(){
       el.addEventListener('click', e => { if (e.detail === 0) pickStation(x.id, false); });
       $('markers').appendChild(el); markerEls.set(x.id, el);
     }
-    const a = avail(x, t), r = st.raids[k(x.id, t)];
+    const a = avail(x, t);
     el.className = 'mk ' + (isOff(x) ? 'sx' : a === 0 ? 's0' : a <= 3 ? 's1' : 's2') + (x.id === s.id ? ' sel' : '') + (x.id === s.id && bossActive(x, t) ? ' raid' : '') + (isFav(x.id) ? ' fav' : '');
-    el.textContent = a;
+    el.textContent = isOff(x) ? '–' : a;
     if (x.id === s.id) el.dataset.name = x.name; else delete el.dataset.name;
-    el.setAttribute('aria-label', `${x.name}，${t === 'rent' ? '可借' : '可還'} ${a}`);
+    el.setAttribute('aria-label', `${x.name}，${isOff(x) ? '暫停服務' : (t === 'rent' ? '可借 ' : '可還 ') + a}`);
     el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
   }
   for (const [id, el] of markerEls) if (!seen.has(id)) { el.remove(); markerEls.delete(id); }
@@ -544,9 +928,8 @@ function dotAt(pt){
   for (const x of stations) { const p = toScreen(x.lat, x.lng, o), d = Math.hypot(p.x - pt.x, p.y - pt.y); if (d < bd) { bd = d; best = x; } }
   return best;
 }
-// pan the map; drag the blue dot to "walk"
 // zoom one level, keeping the map point under (sx, sy) in place; defaults to the map centre
-// while following, the map keeps the GPS position centred; panning stops it, the ◎ button resumes it
+// while following, the map keeps the GPS position centred; panning stops it, the locate button resumes it
 let follow = true;
 function zoom(d, sx, sy){
   const z2 = Math.max(12, Math.min(18, view.z + d)); if (z2 === view.z) return;
@@ -572,7 +955,7 @@ mapEl.addEventListener('pointerdown', e => {
   pts.set(e.pointerId, local(e));
   try { mapEl.setPointerCapture(e.pointerId); } catch(_) {}
   if (pts.size === 2) {
-    if (drag && drag.you) { save(); buildOptions(); }
+    if (drag && drag.you) save();
     drag = null; press = null; mapEl.classList.remove('dragging');
     const p = pinchInfo(); pinch = {d0:p.d, x0:p.x, y0:p.y, scale:1, x:p.x, y:p.y};
     return;
@@ -618,7 +1001,7 @@ const endDrag = e => {
   const wasYou = drag.you; drag = null; mapEl.classList.remove('dragging');
   if (e.type === 'pointerup' && t && t.id) { pickStation(t.id, false); return; }
   if (e.type === 'pointerup' && t && view.z < DOT_Z) { const hit = dotAt(local(e)); if (hit) { pickStation(hit.id, false); return; } }
-  if (wasYou) { save(); buildOptions(); renderStage(); }
+  if (wasYou) { save(); renderAll(); }
 };
 mapEl.addEventListener('pointerup', endDrag); mapEl.addEventListener('pointercancel', endDrag);
 // trackpads fire many small wheel events: add them up and zoom at most one level per 250 ms
@@ -636,37 +1019,21 @@ $('zIn').addEventListener('click', () => zoom(1));
 $('zOut').addEventListener('click', () => zoom(-1));
 $('toMe').addEventListener('click', () => {
   follow = true; view.lat = st.you.lat; view.lng = st.you.lng;
-  if (gpsOn) { manualFrom = null; followNearest(true); save(); buildOptions(); renderAll(); } else renderMap();
+  if (gpsOn) { manualFrom = null; followNearest(true); save(); renderAll(); } else renderMap();
 });
-addEventListener('resize', () => { renderMap(); sizeCanvas(); });
+addEventListener('resize', () => renderMap());
 
 // ---------- station picking ----------
-// a station the user picks stays chosen until they walk 200 m away or press ◎
+// a station the user picks stays chosen until they walk 200 m away or press the locate button
 let manualFrom = null;
 function pickStation(id, center){
-  if (combo) { say('這批還沒送出，送出後才能換站', 'warn'); return; }
+  if (combo) { say('這批還沒送出，送出後才能換站', 'warn'); return false; }
   st.station = id; const s = cur();
   manualFrom = {...st.you}; follow = false;
   if (avail(s, 'rent') === 0) st.type = 'rent'; else if (avail(s, 'ret') === 0) st.type = 'ret';
   if (center) { view.lat = s.lat; view.lng = s.lng; }
-  save(); buildOptions(); renderAll();
-}
-const sel = $('stationSel');
-const distText = d => d < 1000 ? `${Math.round(d)} 公尺` : `${(d / 1000).toFixed(1)} 公里`;
-// the list: favourites first, then the 25 nearest
-function buildOptions(){
-  const s = cur(), favs = st.favs.map(f => byId(f.id)).filter(Boolean);
-  const near = nearest().filter(x => !favs.includes(x)).slice(0, 25);
-  if (!favs.includes(s) && !near.includes(s)) near.unshift(s);
-  sel.innerHTML = '';
-  const group = (label, list) => {
-    if (!list.length) return;
-    const g = document.createElement('optgroup'); g.label = label;
-    list.forEach(x => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.name}・${distText(distTo(x))}`; g.appendChild(o); });
-    sel.appendChild(g);
-  };
-  group('常用站點', favs); group('附近站點', near);
-  sel.value = s.id;
+  save(); renderAll();
+  return true;
 }
 // favourites are kept on this phone; syncing them across devices would need accounts
 const isFav = id => st.favs.some(f => f.id === id);
@@ -675,7 +1042,7 @@ function toggleFav(){
   if (isFav(s.id)) st.favs = st.favs.filter(f => f.id !== s.id);
   else if (st.favs.length >= 10) return say('常用站點最多 10 站，先移除一站再加', 'warn');
   else st.favs.push({id:s.id, name:s.name});
-  save(); buildOptions(); renderAll();
+  save(); renderAll();
 }
 $('favBtn').addEventListener('click', toggleFav);
 
@@ -683,7 +1050,7 @@ $('favBtn').addEventListener('click', toggleFav);
 // every word typed must appear in the name or district; 台/臺 and brackets don't matter
 const norm = v => String(v).toLowerCase().replace(/臺/g, '台').replace(/[\s()（）_\-・]/g, '');
 let hits = [], hitIdx = -1;
-function searchStations(q){
+function searchStations(q, limit = 8){
   const words = q.split(/\s+/).map(norm).filter(Boolean);
   if (!words.length) return [];
   const scored = [];
@@ -693,9 +1060,10 @@ function searchStations(q){
     const rank = name.startsWith(words[0]) ? 0 : name.includes(words[0]) ? 1 : 2;
     scored.push({x, rank, d:distTo(x)});
   }
-  return scored.sort((a, b) => a.rank - b.rank || a.d - b.d).slice(0, 8).map(h => h.x);
+  return scored.sort((a, b) => a.rank - b.rank || a.d - b.d).slice(0, limit).map(h => h.x);
 }
 const qEl = $('q'), qList = $('qList');
+const cntChip = (label, n, off) => `<span class="cnt ${n == null || off ? 'na' : n === 0 ? 's0' : n <= 3 ? 's1' : 's2'}">${label ? `<small>${label}</small>` : ''}${off || n == null ? '–' : n}</span>`;
 function showHits(){
   const open = qEl.value.trim() !== '';
   qList.hidden = !open; qEl.setAttribute('aria-expanded', open);
@@ -731,31 +1099,81 @@ qEl.addEventListener('keydown', e => {
 });
 qEl.addEventListener('focus', () => { if (qEl.value.trim()) { hits = searchStations(qEl.value); showHits(); } });
 qEl.addEventListener('blur', () => { qList.hidden = true; qEl.setAttribute('aria-expanded', false); });
-const cntChip = (label, n, off) => `<span class="cnt ${n == null || off ? 'na' : n === 0 ? 's0' : n <= 3 ? 's1' : 's2'}"><small>${label}</small>${n ?? '–'}</span>`;
-function renderFavs(){
-  const ul = $('favList'), s = cur(), on = isFav(s.id);
-  $('favBtn').textContent = on ? '★ 已加入常用' : '☆ 加入常用';
-  $('favBtn').setAttribute('aria-pressed', on);
-  ul.innerHTML = '';
-  if (!st.favs.length) { ul.innerHTML = '<li><span class="empty">按選中站點旁的「☆ 加入常用」，常用的站會列在這裡，一打開就看得到即時車數。</span></li>'; return; }
-  st.favs.forEach(f => {
-    const x = byId(f.id), li = document.createElement('li'), b = document.createElement('button');
-    if (x && x.id === s.id) b.className = 'cur';
-    b.innerHTML = `<span class="nm"></span>${cntChip('借', x ? avail(x, 'rent') : null, isOff(x))}${cntChip('還', x ? avail(x, 'ret') : null, isOff(x))}`;
-    b.querySelector('.nm').textContent = f.name;
-    const sub = document.createElement('small'); sub.textContent = x ? distText(distTo(x)) : (mode === 'live' ? '目前讀不到這站的資料' : '切換到即時資料後才會顯示');
-    b.querySelector('.nm').appendChild(sub);
-    b.addEventListener('click', () => { if (x) pickStation(x.id, true); else say('目前讀不到這站的資料'); });
-    li.appendChild(b); ul.appendChild(li);
-  });
+
+// ---------- station lists (sheet, nearby tab) ----------
+// one row: name, district, distance, then the count for the current rent/return view
+function stationRow(x, f){
+  const s = cur(), t = st.type, b = document.createElement('button');
+  b.type = 'button'; b.className = 'srow' + (x && x.id === s.id ? ' cur' : '');
+  if (x) b.dataset.id = x.id; else b.disabled = true;
+  const name = x ? x.name : f.name, off = isOff(x);
+  const bits = [];
+  if (x) {
+    const d = distTo(x);
+    if (d <= RADIUS) bits.push('<em>在範圍內</em>');
+    if (x.area) bits.push(esc(x.area));
+    bits.push(distShort(d) + (d > RADIUS ? `・步行 ${Math.max(1, Math.ceil(d / 80))} 分` : ''));
+    if (off) bits.push('暫停服務');
+    else if (x.id === s.id && bossActive(x, t)) bits.push('<span class="bt">魔王中</span>');
+  } else bits.push(mode === 'live' ? '目前讀不到這站的資料' : '切換到即時資料後才會顯示');
+  const o = t === 'rent' ? 'ret' : 'rent';
+  b.innerHTML = `<span class="nm"><span class="n1"></span><small>${bits.join('・')}</small></span>${cntChip('', x ? avail(x, t) : null, off)}<span class="ret">${o === 'ret' ? '可還' : '可借'}<b>${x && !off ? avail(x, o) : '–'}</b></span>`;
+  b.querySelector('.n1').textContent = name;
+  b.setAttribute('aria-label', `${name}，${x ? distText(distTo(x)) : '沒有資料'}，${t === 'rent' ? '可借' : '可還'} ${x && !off ? avail(x, t) : '不明'}`);
+  const li = document.createElement('li'); li.appendChild(b); return li;
 }
-sel.addEventListener('change', () => pickStation(sel.value, true));
-[$('tRent'), $('tRet')].forEach(b => b.addEventListener('click', () => { if (combo) return say('這批還沒送出，送出後才能切換', 'warn'); st.type = b.dataset.type; save(); renderAll(); }));
+const heading = text => { const li = document.createElement('li'); li.innerHTML = `<h3>${text}</h3>`; return li; };
+const emptyLi = text => { const li = document.createElement('li'); li.innerHTML = `<p class="empty" style="padding:8px 4px"></p>`; li.firstChild.textContent = text; return li; };
+const nearList = (n) => { const s = cur(), list = nearest().slice(0, n); if (!list.includes(s)) return [s, ...list.slice(0, n - 1)]; return list; };
+let listMode = 'near';
+function renderNearList(){
+  const ul = $('nearList'); ul.innerHTML = '';
+  $('favCount').textContent = st.favs.length;
+  document.querySelectorAll('[data-list]').forEach(b => b.setAttribute('aria-pressed', b.dataset.list === listMode));
+  if (listMode === 'fav') {
+    if (!st.favs.length) { ul.appendChild(emptyLi('在發洩分頁按站牌右邊的星號，常用的站會列在這裡，一打開就看得到即時車數。最多 10 站。')); return; }
+    st.favs.forEach(f => ul.appendChild(stationRow(byId(f.id), f)));
+  } else nearList(25).forEach(x => ul.appendChild(stationRow(x)));
+}
+document.querySelectorAll('[data-list]').forEach(b => b.addEventListener('click', () => { listMode = b.dataset.list; renderNearList(); }));
+$('nearList').addEventListener('click', e => { const b = e.target.closest('.srow'); if (b && b.dataset.id) pickStation(b.dataset.id, true); });
+
+// the station picker: a bottom sheet with search, favourites first, then the 25 nearest
+const sheet = $('sheet'), sq = $('sq');
+function renderSheet(){
+  const ul = $('sList'), q = sq.value.trim(); ul.innerHTML = '';
+  if (q) {
+    const found = searchStations(q, 25);
+    ul.appendChild(heading('搜尋結果'));
+    if (!found.length) ul.appendChild(emptyLi('找不到符合的站點'));
+    found.forEach(x => ul.appendChild(stationRow(x)));
+    return;
+  }
+  const favs = st.favs.map(f => ({x:byId(f.id), f}));
+  if (favs.length) { ul.appendChild(heading('常用站點')); favs.forEach(({x, f}) => ul.appendChild(stationRow(x, f))); }
+  ul.appendChild(heading('附近站點'));
+  const favSet = new Set(st.favs.map(f => f.id));
+  nearList(26).filter(x => !favSet.has(x.id) || x.id === cur().id).slice(0, 25).forEach(x => ul.appendChild(stationRow(x)));
+}
+function openSheet(){
+  if (combo) return say('這批還沒送出，送出後才能換站', 'warn');
+  sq.value = ''; renderSheet();
+  sheet.showModal();
+  if (!RM()) sheet.animate([{transform:'translateY(100%)'}, {transform:'none'}], {duration:240, easing:'cubic-bezier(.2,.8,.2,1)'});
+}
+$('pickBtn').addEventListener('click', openSheet);
+$('sheetClose').addEventListener('click', () => sheet.close());
+sheet.addEventListener('click', e => { if (e.target === sheet) sheet.close(); });
+sq.addEventListener('input', renderSheet);
+$('sList').addEventListener('click', e => { const b = e.target.closest('.srow'); if (b && b.dataset.id && pickStation(b.dataset.id, true)) sheet.close(); });
+$('rail').addEventListener('click', e => { const b = e.target.closest('.card'); if (b) pickStation(b.dataset.id, true); });
+
+document.querySelectorAll('.tbtn').forEach(b => b.addEventListener('click', () => { if (combo) return say('這批還沒送出，送出後才能切換', 'warn'); st.type = b.dataset.type; save(); renderAll(); }));
 [$('uLevel'), $('uRaw')].forEach(b => b.addEventListener('click', () => { st.unit = b.dataset.unit; save(); renderAll(); }));
 $('soundBtn').addEventListener('click', () => { st.sound = !st.sound; save(); renderAll(); });
 $('walkHere').addEventListener('click', () => {
   if (gpsOn) return say('GPS 定位中，請實際走過去');
-  const s = cur(); st.you = {lat:s.lat + 0.0002, lng:s.lng + 0.0001}; save(); buildOptions(); renderMap(); renderStage();
+  const s = cur(); st.you = {lat:s.lat + 0.0002, lng:s.lng + 0.0001}; save(); renderAll();
 });
 
 // ---------- live data ----------
@@ -765,8 +1183,8 @@ const RET_KEYS = ['available_return_bikes', 'bemp', 'available_spaces', 'availab
 function pick(x, names){
   const keys = Object.keys(x);
   for (const n of names) {
-    const k = keys.find(k => k.toLowerCase() === n);
-    if (k !== undefined && x[k] !== null && x[k] !== '') return +x[k];
+    const key = keys.find(kk => kk.toLowerCase() === n);
+    if (key !== undefined && x[key] !== null && x[key] !== '') return +x[key];
   }
   return NaN;
 }
@@ -861,7 +1279,7 @@ async function refresh(first){
     const s = byId(r.sid); if (!s) continue;
     const a = s[r.type]; if (a > 0) endRaid(r, 'restock', a);
   }
-  save(); buildOptions(); renderAll();
+  save(); renderAll();
   return true;
 }
 // with a real position, keep the chosen station the nearest one unless the user is mid-combo
@@ -874,19 +1292,20 @@ function followNearest(force){
   if (!n || n.id === st.station) return;
   if (force || distTo(cur()) > RADIUS) { st.station = n.id; if (avail(n, 'rent') === 0) st.type = 'rent'; else if (avail(n, 'ret') === 0) st.type = 'ret'; }
 }
-let gpsAcc = 0;
+let gpsAcc = 0, gpsWarn = false;
 function gpsNote(){
   if (!gpsOn) return;
   const far = distTo(nearest()[0]) > 2000;
+  gpsWarn = gpsAcc > RADIUS || far;
   $('locNote').textContent = `GPS 定位中（誤差約 ${gpsAcc} 公尺）` + (gpsAcc > RADIUS ? '。誤差比 100 公尺範圍還大，電腦通常只能用網路粗估位置，請改用手機' : '')
     + (far ? (mode === 'demo' ? '。示範站點都在信義區，離你很遠' : `。2 公里內沒有站點，目前只有${liveCities.join('、')}的資料`) : '');
 }
 // GPS works in demo mode too; it only needs a secure page (https or localhost)
 let gpsWatch = null;
-const GPS_ERR = {1:'定位權限被拒絕。請到瀏覽器或手機設定，允許這個網站使用位置，再按「用 GPS 定位」', 2:'目前取不到位置，請到室外或開啟手機定位服務後再試', 3:'定位逾時，請再按一次「用 GPS 定位」'};
+const GPS_ERR = {1:'定位權限被拒絕。請到瀏覽器或手機設定允許這個網站使用位置，再按「用 GPS 定位」', 2:'目前取不到位置，請到室外或開啟手機定位服務後再試', 3:'定位逾時，請再按一次「用 GPS 定位」'};
 function startGps(){
-  if (!('geolocation' in navigator)) { $('locNote').textContent = '這個瀏覽器不支援定位，請拖曳藍點'; return; }
-  if (!window.isSecureContext) { $('locNote').textContent = '定位只能在 https 網址使用，請拖曳藍點'; return; }
+  if (!('geolocation' in navigator)) { $('locNote').textContent = '這個瀏覽器不支援定位，請到「附近」拖曳藍點'; return; }
+  if (!window.isSecureContext) { $('locNote').textContent = '定位只能在 https 網址使用，請到「附近」拖曳藍點'; return; }
   if (gpsWatch !== null) return;
   $('locNote').textContent = '正在取得 GPS 位置…';
   let first = true;
@@ -896,14 +1315,14 @@ function startGps(){
     followNearest(first); first = false;
     gpsAcc = Math.round(p.coords.accuracy);
     $('useGps').hidden = true;
-    save(); buildOptions(); renderAll();
+    save(); renderAll();
   }, err => {
     gpsOn = false;
     if (gpsWatch !== null) navigator.geolocation.clearWatch(gpsWatch);
     gpsWatch = null;
-    $('locNote').textContent = (GPS_ERR[err.code] || `定位失敗（${err.message}）`) + '。藍點目前是模擬位置，可以拖曳';
-    renderMap();
+    $('locNote').textContent = (GPS_ERR[err.code] || `定位失敗（${err.message}）`) + '。藍點目前是模擬位置';
     $('useGps').hidden = false;
+    renderAll();
   }, {enableHighAccuracy:true, maximumAge:10000, timeout:20000});
 }
 $('useGps').addEventListener('click', startGps);
@@ -915,58 +1334,251 @@ function probeTiles(){
   img.src = TILE_URL(view.z, Math.floor(p.x / TILE), Math.floor(p.y / TILE));
 }
 function renderBadge(){
-  const b = $('mapBadge'), chip = $('modeChip');
+  const b = $('mapBadge'), chip = $('modeChip'), conn = $('conn');
+  $('demoStrip').hidden = mode !== 'demo';
   if (mode === 'live') {
     chip.textContent = backend ? '即時資料・已連線' : '即時資料・離線'; chip.className = 'chip live';
-    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (dupCount ? `・有 ${dupCount} 筆重複站點，已合併` : '') + (offPrefixes.size ? `・${offCities().join('、')} YouBike 暫停服務中` : '') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '');
+    conn.className = 'conn' + (backend ? '' : ' off');
+    conn.innerHTML = backend ? '即時' : `${ico('i-offline')}離線`;
+    b.textContent = `${liveCities.join('、')} YouBike 2.0 即時資料・${hhmm(dataTime)} 更新` + (partialErr ? `（${partialErr}）` : '') + (dupCount ? `・有 ${dupCount} 筆重複站點，已合併` : '') + (offPrefixes.size ? `・${offCities().join('、')} YouBike 暫停服務中` : '') + (tilesOn ? '・地圖資料：OpenStreetMap 貢獻者' : '');
     $('dataNote').textContent = backend
       ? '車位數來自台北市、新北市政府開放資料，每分鐘更新。怒氣、受影響人次和空站魔王的人數都是真實資料：伺服器會再檢查一次距離、冷卻、手速和當下車位，才記錄下來。'
       : '車位數來自台北市、新北市政府開放資料，每分鐘更新。目前連不到伺服器，其他人的怒氣和討伐的路人是模擬的。';
   } else {
     chip.textContent = '示範資料'; chip.className = 'chip';
-    b.textContent = (liveErr ? `讀不到即時資料（${liveErr}），改用示範站點` : '示範站點') + (tilesOn ? '・地圖 © OpenStreetMap 貢獻者' : '・地圖圖磚也載不到，改用空白底圖');
+    conn.className = 'conn demo'; conn.textContent = '示範';
+    b.textContent = (liveErr ? `讀不到即時資料（${liveErr}），改用示範站點` : '示範站點') + (tilesOn ? '・地圖資料：OpenStreetMap 貢獻者' : '・地圖圖磚也載不到，改用空白底圖');
     $('dataNote').textContent = '目前是示範模式：站名是真實地點，但位置是近似值，車位數和其他人的怒氣都是編的。把這個 HTML 檔放到一般網站（例如 GitHub Pages）上打開，會自動改用台北市即時 API、OpenStreetMap 地圖和手機 GPS。';
   }
+  const net = mode === 'live' && !backend;
+  $('netBanner').hidden = !net;
+  if (net) $('netText').textContent = `伺服器連不上，車位是 ${dataTime ? hhmm(dataTime) : '上次'} 的資料。送出的怒氣先存在這支手機。`;
+}
+
+// ---------- FX engine: canvas particles + Web Animations ----------
+// Multi-step keyframes put their easing on each keyframe: an `easing` option applies to the whole timeline.
+function makeFX(wheel, host){
+  const cv = document.createElement('canvas'); cv.className = 'fxc'; cv.setAttribute('aria-hidden', 'true'); wheel.appendChild(cv);
+  const ctx = cv.getContext('2d'), core = wheel.querySelector('.core');
+  const rand = (a, b) => a + Math.random() * (b - a), pickOne = a => a[Math.floor(Math.random() * a.length)];
+  let P = [], raf = 0, idle = -1, warn = false, fuseF = 0, last = performance.now(), spin = 0;
+  const flash = document.createElement('div'); flash.className = 'flash-ov'; flash.setAttribute('aria-hidden', 'true'); host.appendChild(flash);
+  const geom = () => { const R = wheel.clientWidth / 2; return {R, rc:R * .74, W:cv.clientWidth / 2}; };
+  const kick = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); } };
+  const add = p => { if (P.length > 500) return; P.push(Object.assign({t:0, life:600, x:0, y:0, vx:0, vy:0, g:0, drag:1, size:3, kind:'dot', color:cssVar('--heat2')}, p)); kick(); };
+  function burst(n, o){ const {rc} = geom(); for (let i = 0; i < n; i++) { const a = o.a0 != null ? o.a0 + rand(-o.spread, o.spread) : rand(0, Math.PI * 2), s = rand(o.s0, o.s1), r = o.r != null ? o.r : rc;
+    add({x:Math.cos(a) * r, y:Math.sin(a) * r, vx:Math.cos(a) * s, vy:Math.sin(a) * s, g:o.g || 0, drag:o.drag || 1, life:rand(o.l0, o.l1), size:rand(o.z0, o.z1), kind:o.kind || 'dot', color:cssVar(pickOne(o.colors)), rot:rand(0, 6), vr:rand(-.02, .02)}); } }
+  function ring(o){ const {R, rc} = geom(); add(Object.assign({kind:'ring', r0:rc, r1:R * 1.4, lw:4, life:450, color:cssVar('--heat1')}, o)); }
+  function loop(now){
+    const dt = Math.min(48, now - last); last = now; raf = 0;
+    const w = cv.clientWidth, h = cv.clientHeight, d = Math.min(2, devicePixelRatio || 1);
+    if (!w) { P = []; return; }
+    if (cv.width !== Math.round(w * d) || cv.height !== Math.round(h * d)) { cv.width = Math.round(w * d); cv.height = Math.round(h * d); }
+    ctx.setTransform(d, 0, 0, d, w * d / 2, h * d / 2); ctx.clearRect(-w / 2, -h / 2, w, h);
+    const {R} = geom(), rm = RM();
+    // idle emitters while a combo runs
+    if (idle >= 1 && !rm) {
+      spin += dt * [0, .0025, .005, .009][idle];
+      if (idle === 1 && Math.random() < dt * .02) add({kind:'smoke', x:rand(-R * .4, R * .4), y:-R * .8, vx:rand(-.01, .01), vy:-.045, life:1300, size:R * .1, color:cssVar('--muted')});
+      if (idle >= 2 && Math.random() < dt * (idle === 3 ? .07 : .03)) { const a = rand(0, Math.PI * 2); add({kind:'spark', x:Math.cos(a) * R, y:Math.sin(a) * R, vx:Math.cos(a) * .14, vy:Math.sin(a) * .14 - .03, g:.0004, life:480, size:2, color:cssVar(idle === 3 ? pickOne(['--heat4', '--heat1']) : pickOne(['--heat1', '--heat2']))}); }
+      // speed lines orbiting the tire
+      const n = idle + 1, col = cssVar(TIER_C[idle]);
+      ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.lineWidth = 3;
+      for (let i = 0; i < n; i++) { const a = spin + i * Math.PI * 2 / n; ctx.globalAlpha = .55; ctx.beginPath(); ctx.arc(0, 0, R * 1.17, a, a + .5 + idle * .1); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+    if (warn && !rm && Math.random() < dt * .08) { const a = -Math.PI / 2 + fuseF * Math.PI * 2, r = R * 1.03; add({kind:'spark', x:Math.cos(a) * r, y:Math.sin(a) * r, vx:rand(-.12, .12), vy:rand(-.16, -.02), g:.0005, life:380, size:2, color:cssVar(pickOne(['--heat3', '--heat1']))}); }
+    // particles
+    P = P.filter(p => (p.t += dt) < p.life);
+    for (const p of P) {
+      const kk = p.t / p.life;
+      if (p.kind === 'ring') {
+        const e = 1 - Math.pow(1 - kk, 3); ctx.globalAlpha = 1 - kk; ctx.strokeStyle = p.color; ctx.lineWidth = Math.max(.5, p.lw * (1 - kk));
+        ctx.beginPath(); ctx.arc(0, 0, p.r0 + (p.r1 - p.r0) * e, 0, Math.PI * 2); ctx.stroke(); continue;
+      }
+      p.vx *= p.drag; p.vy = p.vy * p.drag + p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      ctx.fillStyle = p.color; ctx.strokeStyle = p.color;
+      if (p.kind === 'smoke') { ctx.globalAlpha = .3 * (1 - kk); ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 + kk * 1.6), 0, Math.PI * 2); ctx.fill(); }
+      else if (p.kind === 'spark') { ctx.globalAlpha = 1 - kk; ctx.lineWidth = p.size; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 40, p.y - p.vy * 40); ctx.stroke(); }
+      else if (p.kind === 'chip') { p.rot += p.vr * dt; ctx.globalAlpha = 1 - kk * kk; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillRect(-p.size, -p.size / 2.5, p.size * 2, p.size / 1.25); ctx.restore(); }
+      else { ctx.globalAlpha = 1 - kk; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 - kk * .6), 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    if (P.length || (idle >= 1 && !rm) || (warn && !rm)) raf = requestAnimationFrame(loop);
+  }
+  function shake(amp, dur){
+    if (RM()) return;
+    const kf = []; for (let i = 0; i <= 10; i++) { const f = (1 - i / 10) * amp; kf.push({translate:i === 10 ? '0 0' : `${rand(-f, f).toFixed(1)}px ${rand(-f, f).toFixed(1)}px`}); }
+    host.animate(kf, {duration:dur, easing:'linear'});
+  }
+  function doFlash(color, peak, dur){ if (RM()) return; flash.style.background = color; flash.animate([{opacity:0, easing:'ease-out'}, {opacity:peak, offset:.12, easing:'ease-out'}, {opacity:0}], {duration:dur}); }
+  function stampIt(el, text, big, dur){
+    if (!el) return; el.textContent = text; el.classList.toggle('nuke', !!big);
+    const base = 'translate(-50%,-50%) rotate(-8deg)';
+    if (RM()) { el.animate([{opacity:0}, {opacity:1, offset:.2}, {opacity:1, offset:.75}, {opacity:0}], {duration:dur || 900}); return; }
+    el.animate(big ? [
+      {opacity:0, transform:`${base} scale(3.2)`, easing:'cubic-bezier(.2,.8,.2,1)'}, {opacity:1, transform:`${base} scale(.9)`, offset:.14}, {transform:'translate(-52%,-50%) rotate(-6deg) scale(1.05)', offset:.2},
+      {transform:'translate(-48%,-50%) rotate(-10deg) scale(1)', offset:.26}, {opacity:1, transform:`${base} scale(1)`, offset:.8}, {opacity:0, transform:`${base} scale(1.1)`}
+    ] : [
+      {opacity:0, transform:`${base} scale(1.8)`, easing:'cubic-bezier(.2,.8,.2,1)'}, {opacity:1, transform:`${base} scale(1)`, offset:.18}, {opacity:1, offset:.72, easing:'ease-in'}, {opacity:0, transform:'translate(-50%,-85%) rotate(-8deg) scale(1)'}
+    ], {duration:dur || 850});
+  }
+  return {
+    press(t){
+      if (RM()) { core.animate([{opacity:1}, {opacity:.72}, {opacity:1}], {duration:160}); return; }
+      core.animate([{scale:'1 1', easing:'ease-out'}, {scale:'1.08 .86', offset:.3, easing:'ease-out'}, {scale:'.96 1.05', offset:.65, easing:'ease-out'}, {scale:'1 1'}], {duration:220 + t * 20});
+      const {R} = geom();
+      ring({r1:R * (1.15 + t * .1), lw:3 + t, life:380, color:cssVar(TIER_C[t])});
+      if (t >= 2) ring({r1:R * 1.5, lw:2, life:520, color:cssVar(TIER_C[t - 1])});
+      const n = [0, 4, 8, 14][t]; if (n) burst(n, {s0:.12, s1:.28, l0:250, l1:420, z0:2, z1:2.5, kind:'spark', colors:[TIER_C[t], '--heat1'], r:R});
+    },
+    setIdle(t){ idle = t; if (t < 0) delete wheel.dataset.idle; else wheel.dataset.idle = t; kick(); },
+    setFuse(f){ fuseF = f; const w = f > 0 && f < .34; if (w !== warn) { warn = w; wheel.classList.toggle('fuse-warn', w); } if (w) kick(); },
+    levelUp(t, l, stampEl){
+      const {R, rc, W} = geom();
+      if (RM()) { stampIt(stampEl, t === 3 ? `核爆！Lv.${l}` : `Lv.${l} ${TIERS[t]}！`, t === 3, 1000); return; }
+      if (t === 0) {
+        stampIt(stampEl, `Lv.${l} ${TIERS[t]}！`);
+        ring({r1:R * 1.5, lw:5, life:520, color:cssVar('--heat1')});
+        burst(12, {s0:.1, s1:.18, l0:350, l1:500, z0:2.5, z1:3.5, colors:['--heat1'], r:R});
+      } else if (t === 1) {
+        stampIt(stampEl, `Lv.${l} ${TIERS[t]}！`);
+        ring({r1:R * 1.55, lw:6, life:560, color:cssVar('--heat2')});
+        burst(42, {a0:-Math.PI / 2, spread:.75, s0:.12, s1:.34, g:-.00008, drag:.985, l0:600, l1:1000, z0:3, z1:6, colors:['--heat1', '--heat2', '--heat2'], r:rc * .6});
+        doFlash(cssVar('--heat2'), .22, 260); shake(4, 260);
+      } else if (t === 2) {
+        stampIt(stampEl, `Lv.${l} ${TIERS[t]}！`, false, 950);
+        ring({r1:R * 1.6, lw:8, life:600, color:cssVar('--heat3')}); setTimeout(() => ring({r1:R * 1.9, lw:4, life:600, color:cssVar('--heat2')}), 90);
+        burst(64, {s0:.15, s1:.36, g:.0009, drag:.975, l0:800, l1:1200, z0:3, z1:6, colors:['--heat3', '--heat2', '--heat1'], r:rc * .8});
+        doFlash(cssVar('--heat3'), .35, 320); shake(9, 460);
+        core.animate([{filter:'brightness(1)'}, {filter:'brightness(1.6)'}, {filter:'brightness(1)'}], {duration:300});
+      } else {
+        stampIt(stampEl, `核爆！Lv.${l}`, true, 1500);
+        doFlash(cssVar('--heat1'), .85, 650); setTimeout(() => doFlash(cssVar('--heat4'), .45, 650), 240);
+        ['--heat4', '--heat1', '--heat4'].forEach((c, i) => setTimeout(() => ring({r1:W * .98, lw:12 - i * 3, life:760, color:cssVar(c)}), i * 130));
+        burst(150, {s0:.1, s1:.42, drag:.96, g:.0002, l0:900, l1:1500, z0:2.5, z1:6, colors:['--heat4', '--heat1', '--heat3', '--hi'], r:rc * .5});
+        for (let i = 0; i < 34; i++) setTimeout(() => add({kind:'smoke', x:rand(-R * .25, R * .25), y:-rc * .2, vx:rand(-.03, .03), vy:rand(-.16, -.09), drag:.992, life:1500, size:rand(R * .14, R * .26), color:cssVar(pickOne(['--heat4', '--heat3']))}), i * 18);
+        shake(16, 900);
+        core.animate([{filter:'brightness(1)'}, {filter:'brightness(2.4)'}, {filter:'brightness(1)'}, {filter:'brightness(1.9)'}, {filter:'brightness(1)'}], {duration:520});
+      }
+    },
+    submit(l, stampEl){
+      if (RM()) { stampIt(stampEl, '送出！', false, 900); return; }
+      core.animate([{scale:'1', easing:'ease-out'}, {scale:'.8', offset:.25, easing:'ease-out'}, {scale:'1.12', offset:.6, easing:'ease-out'}, {scale:'1'}], {duration:440});
+      stampIt(stampEl, '送出！', false, 1000);
+      const chip = document.createElement('span'); chip.className = 'flychip'; chip.textContent = `Lv.${l}`; wheel.appendChild(chip);
+      chip.animate([{transform:'translateY(0) scale(1)', opacity:1, easing:'ease-out'}, {transform:'translateY(-40px) scale(1.2)', opacity:1, offset:.3, easing:'ease-in'}, {transform:'translateY(-170px) scale(.6)', opacity:0}], {duration:760}).onfinish = () => chip.remove();
+      burst(26, {a0:-Math.PI / 2, spread:1.1, s0:.18, s1:.4, g:.0009, l0:700, l1:1100, z0:4, z1:6, kind:'chip', colors:['--heat1', '--heat2', '--heat3', '--you']});
+    },
+    ready(){
+      if (RM()) { core.animate([{opacity:.6}, {opacity:1}], {duration:300}); return; }
+      const {R} = geom(); ring({r0:R * .6, r1:R * 1.35, lw:5, life:500, color:cssVar('--heat1')});
+      core.animate([{scale:'1', easing:'ease-out'}, {scale:'1.1', easing:'ease-out'}, {scale:'1'}], {duration:320});
+    },
+    reject(){
+      if (RM()) { core.animate([{opacity:1}, {opacity:.5}, {opacity:1}], {duration:300}); return; }
+      wheel.animate([{translate:'0'}, {translate:'-10px 0'}, {translate:'9px 0'}, {translate:'-7px 0'}, {translate:'5px 0'}, {translate:'-2px 0'}, {translate:'0'}], {duration:380, easing:'ease-out'});
+      core.animate([{filter:'brightness(1)'}, {filter:'brightness(.7)'}, {filter:'brightness(1)'}], {duration:380});
+    },
+    punch(){ if (!RM()) core.animate([{translate:'0 0', easing:'ease-out'}, {translate:'0 -10px', offset:.35, easing:'ease-out'}, {translate:'0 0'}], {duration:240}); },
+  };
+}
+const wheelEl = $('wheel'), btn = $('angerBtn'), ventEl = $('tab-vent');
+const fx = makeFX(wheelEl, ventEl);
+// boss hit on the boss bar: a "-1" and the boss flashing; the HP cells follow the real count
+function bossHit(){
+  const pill = document.querySelector('#bossBar .bico'); if (!pill) return;
+  const dmg = pill.querySelector('.dmg'), body = pill.querySelector('svg');
+  fx.punch();
+  if (RM()) { dmg.animate([{opacity:0}, {opacity:1, offset:.3}, {opacity:0}], {duration:800}); return; }
+  body.animate([{translate:'0 0', filter:'brightness(1)'}, {translate:'-3px 1px', filter:'brightness(2.6)', offset:.2}, {translate:'3px -1px', offset:.4}, {translate:'-1px 1px', offset:.6}, {translate:'0 0', filter:'brightness(1)'}], {duration:420, delay:110});
+  dmg.animate([{opacity:0, transform:'translateY(6px) scale(.6)', easing:'ease-out'}, {opacity:1, transform:'translateY(-4px) scale(1.3)', offset:.25, easing:'ease-out'}, {opacity:0, transform:'translateY(-24px) scale(1)'}], {duration:820, delay:120});
 }
 
 // ---------- combo ----------
 const coolLeft = () => Math.max(0, (st.coolUntil || 0) - Date.now());
 function tap(){
   if (!combo) {
-    if (coolLeft()) { say(`冷卻中，還要 ${Math.ceil(coolLeft() / 1000)} 秒才能發下一批`, 'warn'); buzz(30); return; }
-    if (!inRange()) { say(`你離站點 ${Math.round(distTo(cur()))} 公尺，要回到 ${RADIUS} 公尺內才能開始新的一批`, 'warn'); buzz(30); return; }
+    if (coolLeft()) { fx.reject(); say(`還要 ${Math.ceil(coolLeft() / 1000)} 秒才能開始下一批`, 'warn'); buzz(30); return; }
+    if (!inRange()) { fx.reject(); say(`你離站點 ${Math.round(distTo(cur()))} 公尺，要回到 ${RADIUS} 公尺內才能開始新的一批`, 'warn'); buzz(30); return; }
     combo = {n:0, sid:cur().id, type:st.type, last:0, start:performance.now()};
+    lastResult = null;
   } else if (performance.now() - combo.last < MIN_GAP) return; // faster than a human finger: ignore
-  const before = lv(combo.n);
+  const first = combo.n === 0, before = lv(combo.n);
   combo.n++; combo.last = performance.now();
-  const after = lv(combo.n);
-  buzz(after >= 7 ? 18 : 8); blip(after); spark(3 + Math.max(0, tierOf(after)) * 2, after);
-  if (after !== before && after > 0) levelUp(after);
+  const after = lv(combo.n), t = Math.max(0, tierOf(after));
+  buzz(after >= 7 ? 18 : 8); blip(after);
+  fx.press(t); fx.setIdle(t);
+  if (after !== before && after > 0) { fx.levelUp(t, after, $('stamp')); fanfare(); announce(`Lv.${after} ${TIERS[t]}`); }
   clearTimeout(finTimer); finTimer = setTimeout(finalize, IDLE);
-  renderStage(); tickTimer();
+  if (first) renderAll(); else renderStage();
+  startFuse();
+}
+// the 3-second fuse: the outermost thin ring, refilled by every tap
+let fuseRaf = 0;
+function startFuse(){ if (!fuseRaf) fuseRaf = requestAnimationFrame(fuseLoop); }
+function fuseLoop(){
+  fuseRaf = 0;
+  if (!combo) { wheelEl.style.setProperty('--f', 0); fx.setFuse(0); return; }
+  const left = Math.max(0, IDLE - (performance.now() - combo.last)), f = left / IDLE;
+  wheelEl.style.setProperty('--f', f); fx.setFuse(f);
+  const ft = $('fuseTxt'); if (ft) ft.textContent = `引信剩 ${(left / 1000).toFixed(1)} 秒・繼續按就會補滿`;
+  if (left > 0) fuseRaf = requestAnimationFrame(fuseLoop);
+}
+// the cooldown: the tire fills with grey stripes clockwise, the core counts down
+let coolRaf = 0, coolSeen = false;
+function startCool(){ if (!coolRaf) coolRaf = requestAnimationFrame(coolLoop); }
+function coolLoop(){
+  coolRaf = 0;
+  if (combo) return;
+  const left = coolLeft();
+  if (left <= 0) {
+    wheelEl.style.setProperty('--a', '0deg');
+    if (coolSeen) { coolSeen = false; renderStage(); renderResult(); if (tab === 'vent') fx.ready(); announce('充能完成，可以開始下一批'); }
+    return;
+  }
+  coolSeen = true;
+  wheelEl.style.setProperty('--a', Math.max(0, Math.min(360, (1 - left / COOLDOWN) * 360)) + 'deg');
+  const n = $('coolN'); if (n) n.textContent = mss(left);
+  coolRaf = requestAnimationFrame(coolLoop);
 }
 function finalize(){
   const c = combo; combo = null; if (!c) return;
+  fx.setIdle(-1); fx.setFuse(0); wheelEl.style.setProperty('--f', 0);
   const s = byId(c.sid);
-  if (c.n < 2 || !s) { say('只按 1 下算誤觸，這批沒有送出'); renderAll(); return; }
+  if (c.n < 2 || !s) {
+    // a single tap counts as a mis-press: kept on this phone (for the badge), never sent, no cooldown
+    if (c.n === 1) { st.misN = (st.misN || 0) + 1; st.misclicks.unshift({t:Date.now(), sid:c.sid, type:c.type}); st.misclicks = st.misclicks.slice(0, 100); save(); }
+    lastResult = {mis:true, until:Date.now() + 2600, shown:true};
+    setTimeout(() => { if (lastResult && lastResult.mis) { lastResult = null; renderStage(); renderResult(); } }, 2700);
+    renderAll(); announce('只按 1 下，當成誤觸，沒有送出');
+    return;
+  }
   const l = lv(c.n), counted = avail(s, c.type) === 0 && !isOff(s);
-  const entry = {t:Date.now(), n:c.n, l, counted, status:backend ? 'sending' : 'local'};
+  const before = profile(), bi = bossInfo(s, c.type);
+  const today = dayNum(Date.now()), todayBest = before.all.filter(e => dayNum(e.t) === today).reduce((m, e) => Math.max(m, e.l), 0);
+  const entry = {t:Date.now(), n:c.n, l, counted, status:backend ? 'sending' : 'local', name:s.name};
+  if (isOff(s)) entry.off = true;
+  if (bi && counted) entry.boss = bi.since; // which boss spell this batch joined, for the volunteer badge
   mySends(c.sid, c.type).unshift(entry);
   st.coolUntil = Date.now() + COOLDOWN;
+  lastResult = {entry, sid:c.sid, type:c.type, boss:bi ? {meIn:bi.meIn, people:bi.people, target:bi.target} : null,
+    rec:before.best && l > before.best ? '新紀錄' : todayBest && l > todayBest ? '今日最高' : null, shown:false};
   sendAnger(entry, c);
   const r = backend ? null : st.raids[k(c.sid, c.type)];
   if (counted && r && r.status === 'live') { r.you = r.you ? {n:Math.max(r.you.n, c.n), l:Math.max(r.you.l, l), sends:r.you.sends + 1} : {n:c.n, l, sends:1}; checkWin(r); }
   save();
-  const left = !inRange();
-  say(`已送出 Lv.${l}（${fmt(c.n)} 下）` + (counted ? '' : `，這站當下有${c.type === 'rent' ? '車' : '位'}，不計入需求統計`) + (left ? '。你已離開站點，下一批要回去才能發' : ''), left ? 'warn' : 'good');
-  renderAll();
-}
-function tickTimer(){
-  if (!combo) return;
-  const left = Math.max(0, IDLE - (performance.now() - combo.last));
-  $('timerBar').style.width = (left / IDLE * 100) + '%';
-  $('timerTxt').textContent = `${(left / 1000).toFixed(1)} 秒內繼續按會接續這批`;
-  if (left > 0) requestAnimationFrame(tickTimer);
+  fx.submit(l, $('stamp'));
+  if (bi && counted && !bi.meIn) bossHit();
+  const res = lastResult;
+  setTimeout(() => {
+    if (lastResult !== res) return;
+    res.shown = true; renderResult(); renderStage();
+    if (!RM()) $('result').animate([{opacity:0, transform:'translateY(-12px)'}, {opacity:1, transform:'none'}], {duration:280, easing:'ease-out'});
+  }, RM() ? 0 : 420);
+  if (!inRange()) say('你已離開站點，下一批要回去才能發', 'warn');
+  announce(`已送出 Lv.${l}，${fmt(c.n)} 下`);
+  renderAll(); startCool();
 }
 
 // ---------- server stats ----------
@@ -1006,6 +1618,19 @@ function bossActive(x, t){
   if (backend) return !!statsFor(x.id, t)?.spell;
   const r = st.raids[k(x.id, t)]; return !!(r && r.status === 'live');
 }
+// one shape for the boss whether it comes from the server or the local simulation
+function bossInfo(s, t){
+  if (!bossActive(s, t)) return null;
+  if (backend) {
+    const d = statsFor(s.id, t), b = d.boss || {people:0, target:TARGET, defeated:false, fighters:[], windowMin:10};
+    return {since:d.spell.since, people:b.people, target:b.target, defeated:b.defeated, meIn:b.fighters.some(f => f.me), windowMin:b.windowMin,
+      fighters:b.fighters.map(f => ({l:f.lv, me:f.me, name:f.me ? '你' : '玩家'})), clock:() => mmss(Date.now() - d.spell.since), clockLabel:'已持續', spellPeople:d.spell.people};
+  }
+  const r = st.raids[k(s.id, t)], people = r.others.length + (r.you ? 1 : 0);
+  return {since:r.startedAt, people, target:TARGET, defeated:r.defeated, meIn:!!r.you, windowMin:10,
+    fighters:(r.you ? [{l:r.you.l, me:true, name:'你'}] : []).concat(r.others.slice(-14).reverse().map(o => ({l:o.l, name:o.name}))),
+    clock:() => mmss(RAID_MS - r.elapsed), clockLabel:'剩餘時間'};
+}
 // the server is the judge: it re-checks distance, cooldown, tap speed and whether the station is empty
 async function sendAnger(entry, c){
   if (!backend) return;
@@ -1014,10 +1639,13 @@ async function sendAnger(entry, c){
   try {
     const {status, body} = await api('/anger', {method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({device:DEVICE, sid:c.sid, type:c.type, clicks:c.n, ms:Math.round(c.last - c.start), lat:st.you.lat, lng:st.you.lng, acc:gpsAcc})});
-    if (body.ok) { entry.status = 'sent'; entry.counted = body.counted; if (body.suspended) entry.reason = '暫停服務中，未計入'; }
-    else {
+    if (body.ok) {
+      entry.status = 'sent'; entry.counted = body.counted;
+      if (Number.isFinite(body.avail)) entry.avail = body.avail;
+      if (body.suspended) { entry.suspended = true; entry.reason = '暫停服務中，未計入'; }
+    } else {
       entry.status = 'rejected'; entry.counted = false; entry.reason = body.message || `伺服器回應 ${status}`;
-      if (body.error === 'cooldown' && body.retryIn) st.coolUntil = Date.now() + body.retryIn * 1000;
+      if (body.error === 'cooldown' && body.retryIn) { st.coolUntil = Date.now() + body.retryIn * 1000; startCool(); }
       say(`伺服器沒有接受這批：${entry.reason}`, 'warn');
     }
   } catch(e) { entry.status = 'failed'; entry.counted = false; entry.reason = '連線失敗'; }
@@ -1042,7 +1670,7 @@ function endRaid(r, outcome, jump){
 let lastTick = performance.now();
 setInterval(() => {
   const now = performance.now(), dt = (now - lastTick) * st.speed; lastTick = now;
-  if (!combo && st.coolUntil && Date.now() < st.coolUntil + 500) renderStage();
+  const bc = $('bbClock'), info = bossNow; if (bc && info) bc.textContent = info.clock();
   if (backend) { const c = $('bClock'); if (c && c.dataset.since) c.textContent = mmss(Date.now() - +c.dataset.since); return; }
   const s = cur(), r = st.raids[k(s.id, st.type)];
   if (!r || r.status !== 'live') return;
@@ -1055,6 +1683,7 @@ setInterval(() => {
   if (r.elapsed >= RAID_MS) { r.elapsed = RAID_MS; endRaid(r, 'timeup'); save(); renderAll(); return; }
   save();
   if (r.defeated !== wasDefeated) renderBoss(); else updateLive(r);
+  renderBossBar();
 }, 250);
 
 function chipsFor(r){
@@ -1064,11 +1693,12 @@ function youLine(r){
   const mvp = [...r.others.map(o => o.l), r.you ? r.you.l : -1].reduce((a, b) => Math.max(a, b), -1);
   return r.you ? `你已參戰：送出 ${r.you.sends} 批，最高 <b>Lv.${r.you.l}</b>${r.you.l === mvp ? '，目前是本場最高等級' : ''}` : '在站點送出一批 Lv.1 以上的怒氣，就算參戰。人數決定勝負，等級只影響你的排名和特效。';
 }
+const hpCells = (people, target) => { const alive = Math.max(0, target - people); return Array.from({length:target}, (_, i) => `<i class="${i < alive ? '' : 'down'}"></i>`).join(''); };
 function updateLive(r){
   const ppl = r.others.length + (r.you ? 1 : 0), el = id => document.getElementById(id);
   if (!el('bClock')) return renderBoss();
   el('bClock').textContent = mmss(RAID_MS - r.elapsed);
-  el('bHp').style.width = Math.min(100, ppl / TARGET * 100) + '%';
+  el('bHp').innerHTML = hpCells(ppl, TARGET);
   el('bPpl').textContent = ppl;
   el('bYou').innerHTML = youLine(r);
   el('bJoin').innerHTML = chipsFor(r) || '<span>還沒有人參戰</span>';
@@ -1077,21 +1707,21 @@ function renderBossLive(s, t, p){
   const data = statsFor(s.id, t), what = t === 'rent' ? '空站魔王' : '滿站魔王', a = avail(s, t);
   const spell = data?.spell, boss = data?.boss;
   if (isOff(s)) {
-    p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
+    p.innerHTML = `<div class="boss-head"><h2>限時討伐</h2></div>
       <p class="explain">${offCities().join('、')}的 YouBike 目前幾乎每一站都是 0 輛，看起來是暫停服務（例如颱風）。這段期間不會出現魔王，送出的怒氣也不算進需求統計。</p>`;
     return;
   }
   if (!spell) {
-    p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
+    p.innerHTML = `<div class="boss-head"><h2>限時討伐</h2></div>
       <p class="explain">${a === 0 ? `${esc(s.name)} 剛變成 0 ${t === 'rent' ? '輛' : '位'}，伺服器每分鐘確認一次，${what}很快就會出現。現在送出的怒氣一樣會算進去。`
         : `${esc(s.name)} 目前${t === 'rent' ? `有 ${a} 輛車可借` : `有 ${a} 個空位可還`}，沒有${what}。魔王只會在即時資料顯示 0 ${t === 'rent' ? '輛' : '位'}時出現。`}</p>`;
     return;
   }
-  const me = boss.fighters.find(f => f.me), pct = Math.min(100, boss.people / boss.target * 100);
+  const me = boss.fighters.find(f => f.me);
   const chips = boss.fighters.map(f => `<span class="${f.me ? 'me' : ''}">${f.me ? '你' : '玩家'} Lv.${f.lv}</span>`).join('');
-  p.innerHTML = `<div class="boss-head"><h2 class="ttl">${what}出現・${typeName(t)}</h2><span class="clock" id="bClock" data-since="${spell.since}" aria-label="已持續時間">${mmss(Date.now() - spell.since)}</span></div>
+  p.innerHTML = `<div class="boss-head"><h2>${what}出現・${typeName(t)}</h2><span class="clock" id="bClock" data-since="${spell.since}" aria-label="已持續時間">${mmss(Date.now() - spell.since)}</span></div>
     <div class="hp">
-      <div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+      <div class="hp20" aria-hidden="true">${hpCells(boss.people, boss.target)}</div>
       <div class="hp-row"><span>${boss.defeated ? '已打倒！' : `最近 ${boss.windowMin} 分鐘有 ${boss.target} 人在現場送出怒氣就能打倒`}</span><span><b>${boss.people}</b> / ${boss.target} 人</span></div>
     </div>
     <div class="you-box">${me ? `你已參戰，最高 <b>Lv.${me.lv}</b>${boss.fighters[0]?.me ? '，目前是最高等級' : ''}` : '在站點送出一批 Lv.1 以上的怒氣，就算參戰。人數決定勝負，等級只影響排名和特效。'}</div>
@@ -1104,15 +1734,15 @@ function renderBoss(){
   const r = raidFor(s, t);
   const what = t === 'rent' ? '空站魔王' : '滿站魔王', back = t === 'rent' ? '有車' : '有位';
   if (!r) {
-    p.innerHTML = `<div class="boss-head"><h2 class="ttl">限時討伐</h2></div>
-      <p class="explain">${esc(s.name)} 目前${t === 'rent' ? `有 ${avail(s, t)} 輛車可借` : `有 ${avail(s, t)} 個空位可還`}，沒有${what}。魔王只會在即時資料顯示 0 ${t === 'rent' ? '輛' : '位'}時出現，地圖上會有一圈脈動標示。</p>`;
+    p.innerHTML = `<div class="boss-head"><h2>限時討伐</h2></div>
+      <p class="explain">${isOff(s) ? `${offCities().join('、')}的 YouBike 看起來暫停服務中，這段期間不會出現魔王。` : `${esc(s.name)} 目前${t === 'rent' ? `有 ${avail(s, t)} 輛車可借` : `有 ${avail(s, t)} 個空位可還`}，沒有${what}。魔王只會在即時資料顯示 0 ${t === 'rent' ? '輛' : '位'}時出現，地圖上會有一圈脈動標示。`}</p>`;
     return;
   }
-  const ppl = r.others.length + (r.you ? 1 : 0), pct = Math.min(100, ppl / TARGET * 100), chips = chipsFor(r);
+  const ppl = r.others.length + (r.you ? 1 : 0), chips = chipsFor(r);
   if (r.status === 'live') {
-    p.innerHTML = `<div class="boss-head"><h2 class="ttl">${what}出現・${typeName(t)}</h2><span class="clock" id="bClock" aria-label="剩餘時間">${mmss(RAID_MS - r.elapsed)}</span></div>
+    p.innerHTML = `<div class="boss-head"><h2>${what}出現・${typeName(t)}</h2><span class="clock" id="bClock" aria-label="剩餘時間">${mmss(RAID_MS - r.elapsed)}</span></div>
       <div class="hp">
-        <div class="bar" aria-hidden="true"><i id="bHp" style="width:${pct}%"></i></div>
+        <div class="hp20" id="bHp" aria-hidden="true">${hpCells(ppl, TARGET)}</div>
         <div class="hp-row"><span>${r.defeated ? '已打倒！繼續統計到時間結束' : `10 分鐘內 ${TARGET} 人在現場送出怒氣就能打倒`}</span><span><b id="bPpl">${ppl}</b> / ${TARGET} 人</span></div>
       </div>
       <div class="you-box" id="bYou">${youLine(r)}</div>
@@ -1125,8 +1755,8 @@ function renderBoss(){
   } else {
     const head = r.outcome === 'restock' ? `站點恢復${back}，魔王撤退` : (r.defeated ? '討伐成功' : '時間到，魔王還在');
     const jumpTxt = r.outcome === 'restock' && r.jump >= 5 ? `一次多了 ${r.jump} ${t === 'rent' ? '輛' : '位'}，疑似調度。` : '';
-    p.innerHTML = `<div class="boss-head"><h2 class="ttl">${what}・${typeName(t)}</h2><span class="clock">${mmss(RAID_MS - r.elapsed)}</span></div>
-      <div class="result"><b>${head}</b>${r.outcome === 'restock' ? `${t === 'rent' ? '空站' : '滿站'}持續了 ${(r.elapsed / 60000).toFixed(1)} 分鐘，這段時間有 ${ppl} 人在現場${typeName(t)}。${jumpTxt}` : `10 分鐘內有 ${ppl} 人在現場${typeName(t)}。`}${r.you ? ` 你最高打出 Lv.${r.you.l}。` : ''}</div>
+    p.innerHTML = `<div class="boss-head"><h2>${what}・${typeName(t)}</h2><span class="clock">${mmss(RAID_MS - r.elapsed)}</span></div>
+      <div class="bresult"><b>${head}</b>${r.outcome === 'restock' ? `${t === 'rent' ? '空站' : '滿站'}持續了 ${(r.elapsed / 60000).toFixed(1)} 分鐘，這段時間有 ${ppl} 人在現場${typeName(t)}。${jumpTxt}` : `10 分鐘內有 ${ppl} 人在現場${typeName(t)}。`}${r.you ? ` 你最高打出 Lv.${r.you.l}。` : ''}</div>
       <div class="joiners">${chips}</div>
       <div class="boss-tools"><button class="ghost" id="again">再開一場（模擬）</button></div>`;
   }
@@ -1136,116 +1766,348 @@ function renderBoss(){
   const ag = p.querySelector('#again');
   if (ag) ag.addEventListener('click', () => { delete st.restocked[k(s.id, t)]; delete st.raids[k(s.id, t)]; save(); renderAll(); });
 }
+// the boss bar on the 發洩 tab: 20 HP cells (one per person), tap to see who joined
+let bossOpen = false, bossSig = '', bossNow = null;
+function renderBossBar(){
+  const s = cur(), t = st.type, el = $('bossBar'), b = bossInfo(s, t);
+  bossNow = b;
+  document.querySelector('#nav [data-tab="vent"]').classList.toggle('dot', !!b);
+  ventEl.classList.toggle('raid', !!b);
+  if (!b) { if (bossSig) { el.innerHTML = ''; bossSig = ''; } return; }
+  const sig = [s.id, t, b.people, b.defeated, b.fighters.map(f => f.l).join(','), bossOpen].join('|');
+  if (sig === bossSig) return;
+  bossSig = sig;
+  const what = t === 'rent' ? '空站魔王' : '滿站魔王', left = Math.max(0, b.target - b.people);
+  el.innerHTML = `<button class="bosspill" id="bossPill" aria-expanded="${bossOpen}" aria-label="${what}，${b.people} / ${b.target} 人參戰，點一下${bossOpen ? '收起' : '展開'}">
+      <span class="bico"><svg viewBox="0 0 58 48" aria-hidden="true"><use href="#boss"/></svg><span class="dmg" aria-hidden="true">-1</span></span>
+      <span>${what}</span><span class="hp20" aria-hidden="true">${hpCells(b.people, b.target)}</span><span>${b.defeated ? '已打倒' : `再 ${left} 人`}</span></button>
+    <div class="bossmore" ${bossOpen ? '' : 'hidden'}>
+      <div class="row"><span>${b.clockLabel} <b id="bbClock">${b.clock()}</b></span><span>最近 ${b.windowMin} 分鐘 <b>${b.people}</b> / ${b.target} 人參戰</span></div>
+      <div class="fighters">${b.fighters.slice(0, 8).map(f => `<span class="${f.me ? 'me' : ''}">${esc(f.name)} Lv.${f.l}</span>`).join('') || '<span>還沒有人參戰</span>'}${b.fighters.length > 8 ? `<span>+${b.fighters.length - 8} 人</span>` : ''}</div>
+      <div class="row"><span class="note">${b.meIn ? '你已參戰。' : '在站點送出一批 Lv.1 以上就算參戰。'}</span><button class="link" data-goto="info">詳細</button></div>
+    </div>`;
+  $('bossPill').addEventListener('click', () => { bossOpen = !bossOpen; renderBossBar(); });
+}
 
-// ---------- render ----------
-function renderStage(){
-  const s = cur(), raw = st.unit === 'raw', btn = $('angerBtn'), d = distTo(s), here = d <= RADIUS;
-  const cool = combo ? 0 : coolLeft(), coolS = Math.ceil(cool / 1000);
-  const locked = !combo && (!!cool || !here);
-  $('distTxt').textContent = d < 1000 ? `${Math.round(d)} 公尺` : `${(d / 1000).toFixed(1)} 公里`;
-  gpsNote();
-  const pill = $('locPill');
-  if (combo && !here) { pill.textContent = '已離開，這批可打完'; pill.className = 'pill mid'; }
-  else if (here) { pill.textContent = '在 100 公尺內'; pill.className = 'pill'; }
-  else { pill.textContent = '不在站點'; pill.className = 'pill out'; }
-  sel.disabled = !!combo; $('tRent').disabled = $('tRet').disabled = !!combo;
-
-  btn.dataset.locked = locked;
-  $('cta').textContent = cool ? `冷卻 ${coolS} 秒` : locked ? '不在站點' : '按下去';
-  if (combo) {
-    const n = combo.n, l = lv(n), t = tierOf(l);
-    $('tierName').textContent = TIERS[Math.max(0, t)].face + ' 這批：' + TIERS[Math.max(0, t)].name;
-    if (raw) { $('big').textContent = fmt(n); $('sub').textContent = `下 · Lv.${l}`; }
-    else { $('big').textContent = `Lv.${l}`; $('sub').textContent = `${fmt(n)} 下`; }
-    btn.dataset.tier = Math.max(0, t);
-    btn.style.setProperty('--glow', Math.min(60, (l + 1) * 5));
-    $('face').textContent = TIERS[Math.max(0, t)].face;
-    const lower = 2 ** l, next = 2 ** (l + 1);
-    $('lvlBar').style.width = ((n - lower) / (next - lower) * 100) + '%';
-    $('lvlTxt').textContent = `再按 ${fmt(next - n)} 下這批升到 Lv.${l + 1}`;
-  } else {
-    const last = mySends(s.id, st.type)[0];
-    $('tierName').textContent = cool ? '⏳ 冷卻中' : locked ? '📍 先回到站點' : '準備開始一批';
-    $('big').textContent = raw ? '0' : 'Lv.–';
-    $('sub').textContent = last ? `上一批 Lv.${last.l} · ${fmt(last.n)} 下` : '按下去開始連擊';
-    btn.dataset.tier = 0; btn.style.setProperty('--glow', 0);
-    $('face').textContent = cool ? '⏳' : locked ? '📍' : '😠';
-    $('lvlBar').style.width = '0%';
-    $('lvlTxt').textContent = '按 2 下就是 Lv.1';
-    $('timerBar').style.width = (cool / COOLDOWN * 100) + '%';
-    $('timerTxt').textContent = cool ? `冷卻中，${coolS} 秒後可以發下一批` : '停手 3 秒，這批就會送出';
+// ---------- personal record (this phone only) ----------
+// XP, titles and badges use only batches the server accepted
+const dayNum = t => Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / 86400000);
+function allSends(){
+  const out = [];
+  for (const [key, list] of Object.entries(st.sends)) { const i = key.lastIndexOf(':'), sid = key.slice(0, i), type = key.slice(i + 1); for (const e of list) out.push({...e, sid, type}); }
+  return out;
+}
+function profile(){
+  const all = allSends(), acc = all.filter(e => e.status === 'sent');
+  const p = {all, acc, xp:0, sends:acc.length, counted:0, best:0, maxN:0, night:0, typhoon:false, mis:st.misN || 0};
+  const raids = new Set(), perSid = {}, types = {}, days = new Set(), weeks = {};
+  for (const e of acc) {
+    p.xp += e.l; if (e.counted) p.counted++;
+    p.best = Math.max(p.best, e.l); p.maxN = Math.max(p.maxN, e.n);
+    if (e.boss) raids.add(`${e.sid}:${e.type}:${e.boss}`);
+    perSid[e.sid] = (perSid[e.sid] || 0) + 1; (types[e.sid] ||= new Set()).add(e.type);
+    const d = new Date(e.t), dn = dayNum(e.t), wd = d.getDay();
+    if (d.getHours() < 5) p.night++;
+    if (e.suspended) p.typhoon = true;
+    days.add(dn);
+    if (wd >= 1 && wd <= 5) (weeks[Math.floor((dn + 3) / 7)] ||= new Set()).add(wd); // weeks start on Monday
+  }
+  const sids = Object.keys(perSid);
+  p.raids = raids.size; p.stations = sids.length;
+  p.regular = Math.max(0, ...Object.values(perSid));
+  p.both = Object.values(types).some(x => x.size === 2);
+  p.tp = sids.some(id => id.startsWith('tp')); p.nt = sids.some(id => id.startsWith('nt'));
+  let run = 0, prev = null; p.streak = 0;
+  for (const d of [...days].sort((a, b) => a - b)) { run = prev !== null && d === prev + 1 ? run + 1 : 1; p.streak = Math.max(p.streak, run); prev = d; }
+  p.weeks = Object.values(weeks).filter(x => x.size === 5).length;
+  p.weekNow = weeks[Math.floor((dayNum(Date.now()) + 3) / 7)]?.size || 0;
+  return p;
+}
+function titleOf(v){ let i = 0; while (i + 1 < TITLES.length && v >= TITLES[i + 1][0]) i++; return {name:TITLES[i][1], next:TITLES[i + 1] ? TITLES[i + 1][0] : null, nextName:TITLES[i + 1]?.[1]}; }
+const M = ['', 'bronze', 'silver', 'gold'], MN = {bronze:'銅', silver:'銀', gold:'金'};
+const BADGES = [
+  {cat:'等級里程碑', id:'lv4', name:'冒火初體驗', art:'b-fire', cond:'單批打到 Lv.4（16 下）', single:'bronze', got:p => p.best >= 4, prog:p => [p.maxN, 16], unit:'下'},
+  {cat:'等級里程碑', id:'lv7', name:'火山爆發', art:'b-volcano', cond:'單批打到 Lv.7（128 下）', single:'silver', got:p => p.best >= 7, prog:p => [p.maxN, 128], unit:'下'},
+  {cat:'等級里程碑', id:'lv10', name:'核爆騎士', art:'b-nuke', cond:'單批打到 Lv.10（1024 下）', single:'gold', got:p => p.best >= 10, prog:p => [p.maxN, 1024], unit:'下'},
+  {cat:'累積', id:'sends', name:'連環怒拳', art:'b-combo', cond:'伺服器接受的批數', tiers:[10, 50, 200], val:p => p.sends, unit:'批'},
+  {cat:'累積', id:'xp', name:'怒氣滿載', art:'b-gauge', cond:'怒氣值（等級加總）', tiers:[100, 400, 1000], val:p => p.xp, unit:'點'},
+  {cat:'累積', id:'counted', name:'證據提供者', art:'b-clip', cond:'計入需求的批數', tiers:[10, 50, 200], val:p => p.counted, unit:'批'},
+  {cat:'魔王', id:'raid', name:'討伐志願兵', art:'b-strike', cond:'參戰過的魔王場數', tiers:[1, 5, 20], val:p => p.raids, unit:'場'},
+  {cat:'魔王', id:'slay', name:'屠魔者', art:'b-bossx', cond:'參戰的魔王最後被打倒', be:true},
+  {cat:'魔王', id:'mvp', name:'本場 MVP', art:'b-crown', cond:'打倒時你是最高等級', be:true},
+  {cat:'探索', id:'stations', name:'單車遊俠', art:'b-bike', cond:'發洩過的不同站數', tiers:[5, 15, 40], val:p => p.stations, unit:'站'},
+  {cat:'探索', id:'cities', name:'雙北通勤', art:'b-pins', cond:'台北市和新北市都發洩過', single:'gold', got:p => p.tp && p.nt, note:p => p.tp && !p.nt ? '還差新北市' : p.nt && !p.tp ? '還差台北市' : ''},
+  {cat:'探索', id:'night', name:'夜貓騎士', art:'b-moon', cond:'在 00:00–05:00 發洩的批數', tiers:[1, 5, 20], val:p => p.night, unit:'批'},
+  {cat:'毅力', id:'streak', name:'不屈之輪', art:'b-cal', cond:'連續有發洩的天數（最長）', tiers:[3, 7, 30], val:p => p.streak, unit:'天'},
+  {cat:'毅力', id:'regular', name:'本站常客', art:'b-sign', cond:'同一站發洩的批數（最多的那站）', tiers:[5, 20, 50], val:p => p.regular, unit:'批'},
+  {cat:'毅力', id:'commute', name:'通勤怒士', art:'b-bag', cond:'週一到週五每天都有發洩的週數', tiers:[1, 4, 12], val:p => p.weeks, unit:'週', note:p => `本週 ${p.weekNow} / 5 天`},
+  {cat:'特殊', id:'typhoon', name:'颱風也要罵', art:'b-typhoon', cond:'暫停服務期間仍送出（不計入）', single:'silver', got:p => p.typhoon, note:() => '等下一次暫停服務'},
+  {cat:'特殊', id:'misclick', name:'誤觸王', art:'b-tap', cond:'只按 1 下的誤觸次數', tiers:[10, 30, 100], val:p => p.mis, unit:'次'},
+  {cat:'特殊', id:'both', name:'借還雙殺', art:'b-swap', cond:'同一站借不到、還不了都送出過', single:'silver', got:p => p.both},
+];
+function badgeState(b, p){
+  if (b.be) return {metal:'', lvl:0};
+  if (b.single) { const got = b.got(p); return {metal:got ? b.single : '', lvl:got ? 1 : 0, prog:!got && b.prog ? b.prog(p) : null, note:!got && b.note ? b.note(p) : ''}; }
+  const v = b.val(p), n = b.tiers.filter(x => v >= x).length;
+  return {metal:M[n], lvl:n, prog:n < 3 ? [v, b.tiers[n]] : null, next:n < 3 ? MN[M[n + 1]] : '', note:b.note ? b.note(p) : ''};
+}
+function badgeHTML(b, p){
+  const s = badgeState(b, p), locked = !s.metal;
+  const art = `<svg class="bart" viewBox="0 0 64 70" aria-hidden="true"><use href="#bdg-frame"/><use href="#${b.art}" x="15" y="18" width="34" height="34"/></svg>`;
+  if (b.be) return `<div class="bdg locked na" data-badge="${b.id}">${art}<b>${b.name}</b><span class="cond">${b.cond}</span><span class="st">未開放</span><span class="needbe">需後端</span></div>`;
+  const pips = b.tiers ? `<span class="pips" aria-label="已到第 ${s.lvl} 級">${['b', 's', 'g'].map((c, i) => `<i class="${i < s.lvl ? c : ''}"></i>`).join('')}</span>` : '';
+  const thr = b.tiers ? `<br>銅 ${b.tiers[0]}／銀 ${b.tiers[1]}／金 ${b.tiers[2]} ${b.unit}` : '';
+  const pv = s.prog ? [Math.min(s.prog[0], s.prog[1]), s.prog[1]] : null;
+  let status;
+  if (!locked) status = `<span class="st"><span class="mt">${MN[s.metal]}</span>${pips}${pv ? `${fmt(pv[0])}/${fmt(pv[1])} 升${s.next}` : b.tiers ? '滿級' : '已取得'}</span>`;
+  else status = `<span class="st">${pips || '未取得'}${pv ? ` ${fmt(pv[0])}/${fmt(pv[1])} ${b.unit}` : ''}${s.note ? ` ${s.note}` : ''}</span>`;
+  const bar = pv ? `<span class="bprog"><i style="width:${Math.min(100, pv[0] / pv[1] * 100)}%"></i></span>` : '';
+  return `<div class="bdg ${locked ? 'locked' : 'm-' + s.metal}" data-badge="${b.id}" data-got="${!locked}">${art}<b>${b.name}</b><span class="cond">${b.cond}${thr}</span>${status}${bar}</div>`;
+}
+function renderXp(p){
+  const tt = titleOf(p.xp), next = tt.next ?? p.xp;
+  $('xpT').textContent = tt.name; $('xpN').textContent = tt.next ? `${fmt(p.xp)}/${fmt(tt.next)}` : fmt(p.xp);
+  $('xpB').style.width = (next ? Math.min(100, p.xp / next * 100) : 100) + '%';
+}
+function sendTag(e){
+  const unit = e.type === 'rent' ? '車' : '位';
+  return e.status === 'sending' ? ['no', '傳送中…'] : e.status === 'rejected' ? ['no', `未接受：${e.reason}`] : e.status === 'failed' ? ['no', '連線失敗，沒送出']
+    : e.suspended ? ['no', '暫停服務中，未計入']
+    : e.counted ? ['in', e.status === 'sent' ? '計入需求' : '計入（只在這支手機）'] : ['no', e.reason || (Number.isFinite(e.avail) ? `當下有 ${e.avail} ${e.type === 'rent' ? '輛' : '位'}，未計入` : `當下有${unit}，未計入`)];
+}
+const whenText = t => { const d = new Date(t); return dayNum(t) === dayNum(Date.now()) ? hhmm(t) : `${d.getMonth() + 1}/${d.getDate()} ${hhmm(t)}`; };
+const stName = (sid, e) => e?.name || byId(sid)?.name || st.favs.find(f => f.id === sid)?.name || sid;
+function renderRec(){
+  const p = profile(), tt = titleOf(p.xp);
+  $('crest').textContent = tt.name[0];
+  $('heroK').textContent = `稱號・怒氣值 ${fmt(p.xp)}`;
+  $('heroT').textContent = tt.name;
+  $('heroB').style.width = (tt.next ? Math.min(100, p.xp / tt.next * 100) : 100) + '%';
+  $('heroN').textContent = (tt.next ? `再 ${fmt(tt.next - p.xp)} 點升「${tt.nextName}」` : '已經是最高稱號') + '・怒氣值＝伺服器接受的每一批等級加總';
+  $('mBest').textContent = p.best ? `Lv.${p.best}` : '–';
+  $('mBestN').textContent = p.maxN ? `最多 ${fmt(p.maxN)} 下` : '還沒有紀錄';
+  $('mSends').textContent = fmt(p.sends); $('mCounted').textContent = fmt(p.counted);
+  // badge wall
+  const cats = [...new Set(BADGES.map(b => b.cat))];
+  let got = 0;
+  $('bwall').innerHTML = cats.map(c => {
+    const list = BADGES.filter(b => b.cat === c), n = list.filter(b => badgeState(b, p).metal).length, open = list.filter(b => !b.be).length; got += n;
+    return `<div class="bcat"><h3>${c}<small>${n} / ${open}</small></h3><div class="bgrid">${list.map(b => badgeHTML(b, p)).join('')}</div></div>`;
+  }).join('');
+  $('bCount').textContent = `已取得 ${got} / ${BADGES.filter(b => !b.be).length}・存在這支手機`;
+  // my batches, every station, newest first (mis-presses too)
+  const rows = p.all.map(e => ({t:e.t, e})).concat(st.misclicks.map(m => ({t:m.t, m}))).sort((a, b) => b.t - a.t).slice(0, 20);
+  const h = $('hist'); h.innerHTML = '';
+  if (!rows.length) { h.innerHTML = '<li class="one"><span class="empty">還沒有送出過。到「發洩」連按幾下再停手 3 秒，就會出現在這裡。</span></li>'; return; }
+  for (const r of rows) {
+    const li = document.createElement('li');
+    if (r.m) {
+      li.innerHTML = `<time>${whenText(r.t)}</time><span class="l1">1 下<small></small></span><span class="tag no">誤觸，沒有送出</span>`;
+      li.querySelector('small').textContent = `${stName(r.m.sid)}・${r.m.type === 'rent' ? '借' : '還'}`;
+    } else {
+      const e = r.e, tag = sendTag(e);
+      li.innerHTML = `<time>${whenText(e.t)}</time><span class="l1">Lv.${e.l}・${fmt(e.n)} 下<small></small></span><span class="tag ${tag[0]}"></span>`;
+      li.querySelector('small').textContent = `${stName(e.sid, e)}・${e.type === 'rent' ? '借' : '還'}${e.boss ? '・參戰魔王' : ''}`;
+      li.querySelector('.tag').textContent = tag[1];
+      li.querySelector('.tag').title = tag[1];
+    }
+    h.appendChild(li);
   }
 }
-function renderAll(){
-  const s = cur(), t = st.type, raw = st.unit === 'raw';
-  if (sel.value !== s.id) buildOptions();
-  const a = avail(s, 'rent'), b = avail(s, 'ret');
-  $('rentN').textContent = a; $('rentN').className = a === 0 ? 'zero' : 'okv';
-  $('retN').textContent = b;  $('retN').className = b === 0 ? 'zero' : 'okv';
-  const age = s.time ? Math.round((Date.now() - s.time) / 60000) : null;
-  $('dataAge').textContent = mode !== 'live' ? '範例資料，不是即時車位' : isOff(s) ? `${PREFIX_CITY[s.id.slice(0, 2)] || ''}的 YouBike 看起來暫停服務中（例如颱風），車數暫時沒有參考價值` : s.time ? `這站的車位資料時間：${hhmm(s.time)}（${age <= 0 ? '剛剛' : age + ' 分鐘前'}）${age > 5 ? '，資料偏舊，可能和官方 App 不同' : ''}` : '這站的資料沒有附時間';
-  $('dataAge').style.color = age > 5 ? 'var(--bad)' : '';
-  $('tRent').setAttribute('aria-pressed', t === 'rent'); $('tRet').setAttribute('aria-pressed', t === 'ret');
-  $('uLevel').setAttribute('aria-pressed', !raw); $('uRaw').setAttribute('aria-pressed', raw);
-  $('soundBtn').textContent = '音效：' + (st.sound ? '開' : '關'); $('soundBtn').setAttribute('aria-pressed', st.sound);
-  renderBoss(); renderStage(); renderMap(); renderBadge();
 
-  // my sends
-  const list = mySends(s.id, t);
-  $('histTitle').textContent = `我送出的怒氣・${typeName(t)}`;
-  const h = $('hist'); h.innerHTML = '';
-  if (!list.length) h.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">在這站還沒送出過。連按幾下再停手 3 秒，就會出現在這裡。</span></li>';
-  list.slice(0, 10).forEach(e => {
-    const li = document.createElement('li');
-    const tag = e.status === 'sending' ? ['no', '傳送中…'] : e.status === 'rejected' ? ['no', `未接受：${e.reason}`] : e.status === 'failed' ? ['no', '連線失敗，沒送出']
-      : e.counted ? ['in', e.status === 'sent' ? '計入需求' : '計入（只在這支手機）'] : ['no', e.reason || `當下有${t === 'rent' ? '車' : '位'}，未計入`];
-    li.innerHTML = `<time>${hhmm(e.t)}</time><span class="v">${raw ? fmt(e.n) + ' 下' : 'Lv.' + e.l}<small>${raw ? 'Lv.' + e.l : fmt(e.n) + ' 下'}</small></span><span class="tag ${tag[0]}"></span>`;
-    li.querySelector('.tag').textContent = tag[1];
-    h.appendChild(li);
-  });
-
-  // station stats
-  const counted = list.filter(e => e.counted);
-  const mine = {sends:list.length, clicks:list.reduce((x, e) => x + e.n, 0), lv:list.reduce((x, e) => x + e.l, 0), max:list.reduce((x, e) => Math.max(x, e.l), 0)};
+// ---------- render ----------
+function stationTotals(s, t){
+  const list = mySends(s.id, t), counted = list.filter(e => e.counted);
   const srv = backend ? statsFor(s.id, t) : null;
+  if (srv) return {sends:srv.total.sends, clicks:srv.total.clicks, lv:srv.total.lv, ppl:srv.total.people, srv:true};
+  const base = s.base[t];
+  return {sends:base.sends + counted.length, clicks:base.clicks + counted.reduce((x, e) => x + e.n, 0), lv:base.lv + counted.reduce((x, e) => x + e.l, 0), ppl:base.ppl + (counted.length ? 1 : 0)};
+}
+// nearest station (other than this one) that has a bike, or a dock, for the current view
+function nearestWith(t){
+  const s = cur();
+  return nearest().slice(0, 60).find(x => x.id !== s.id && !isOff(x) && avail(x, t) > 0 && distTo(x) < 2000) || null;
+}
+function tipLine(){
+  const s = cur(), t = st.type;
+  if (isOff(s) || avail(s, t) !== 0) return '';
+  const x = nearestWith(t); if (!x) return '';
+  return `最近有${t === 'rent' ? '車' : '位'}：<b>${esc(x.name)} ${distShort(distTo(x))}・${avail(x, t)} ${t === 'rent' ? '輛' : '位'}</b>`;
+}
+function renderPlate(){
+  const s = cur(), off = isOff(s), a = avail(s, 'rent'), b = avail(s, 'ret');
+  $('stName').textContent = s.name;
+  $('pickBtn').setAttribute('aria-label', `目前站點：${s.name}，點一下換站`);
+  $('stArea').textContent = s.area || ''; $('stArea').hidden = !s.area;
+  $('rentN').textContent = off ? '–' : a; $('rentN').className = !off && a === 0 ? 'z' : '';
+  $('retN').textContent = off ? '–' : b; $('retN').className = !off && b === 0 ? 'z' : '';
+  const on = isFav(s.id);
+  $('favBtn').innerHTML = ico(on ? 'i-star-fill' : 'i-star-line');
+  $('favBtn').setAttribute('aria-pressed', on);
+  $('favBtn').setAttribute('aria-label', on ? '已加入常用，點一下移除' : '加入常用');
+  const age = mode === 'live' && s.time ? Math.round((Date.now() - s.time) / 60000) : null;
+  $('staleTag').hidden = !(age > 5); $('staleTag').textContent = `資料 ${age} 分鐘前`;
+  document.querySelectorAll('.tbtn').forEach(x => x.setAttribute('aria-pressed', x.dataset.type === st.type));
+  // typhoon banner when the chosen station's city looks suspended
+  $('offBanner').hidden = !off;
+  if (off) $('offText').innerHTML = `<b>${PREFIX_CITY[s.id.slice(0, 2)] || ''} YouBike 暫停服務中</b> 幾乎每一站都是 0 輛，看起來是颱風停駛。這段期間的怒氣不計入需求。`;
+}
+function renderStage(){
+  const s = cur(), d = distTo(s), here = d <= RADIUS, off = isOff(s);
+  const cool = combo ? 0 : coolLeft(), locked = !combo && !cool && !here;
+  $('distTxt').textContent = distShort(d);
+  $('simTag').hidden = gpsOn;
+  gpsNote();
+  $('locLine').hidden = gpsOn && !gpsWarn;
+  $('walkHere').hidden = gpsOn;
+  const pill = $('locPill');
+  if (off && !combo) { pill.textContent = '暫停服務'; pill.className = 'pill na'; }
+  else if (combo && !here) { pill.textContent = '已離開，這批可打完'; pill.className = 'pill mid'; }
+  else if (here) { pill.textContent = '在範圍內'; pill.className = 'pill'; }
+  else { pill.textContent = '不在範圍'; pill.className = 'pill out'; }
+  document.querySelectorAll('.tbtn').forEach(x => { x.disabled = !!combo; });
+
+  const bossy = !combo && !cool && !locked && bossActive(s, st.type);
+  wheelEl.classList.toggle('cool', !!cool); wheelEl.classList.toggle('lock', locked); wheelEl.classList.toggle('off', off);
+  ventEl.classList.toggle('boss', bossy);
+  const lvEl = $('lvTxt'), tn = $('tierName'), hint = $('hint');
+  let html, label;
+  if (combo) {
+    const n = combo.n, l = lv(n), t = tierOf(l), p = l >= 10 ? 0 : (n - 2 ** l) / 2 ** l;
+    ventEl.dataset.tier = t;
+    wheelEl.style.setProperty('--a', Math.min(360, (l + p) * 36) + 'deg');
+    lvEl.textContent = 'Lv.' + l; tn.textContent = TIERS[t];
+    html = `${ico('f-' + t, 'face sm')}<span class="n${n >= 1000 ? ' long' : ''}">${fmt(n)}</span><span class="u">下</span>`;
+    label = `這批 ${n} 下，Lv.${l}，繼續按`;
+    hint.innerHTML = (l >= 10 ? '已經核爆，繼續按會累積點擊數' : `再 <b>${fmt(2 ** (l + 1) - n)}</b> 下升 Lv.${l + 1}`) + '<br><span id="fuseTxt">停手 3 秒送出</span>';
+  } else {
+    ventEl.dataset.tier = 0;
+    if (cool) {
+      lvEl.textContent = '充能'; tn.textContent = '冷卻中';
+      html = `${ico('i-charge')}<span class="u">充能中</span><span class="n" id="coolN">${mss(cool)}</span>`;
+      label = `冷卻中，還要 ${Math.ceil(cool / 1000)} 秒`;
+      const tip = tipLine();
+      hint.innerHTML = '充能中，冷卻 30 秒，換站也要等' + (tip ? '<br>' + tip : '');
+      startCool();
+    } else if (locked) {
+      wheelEl.style.setProperty('--a', '0deg');
+      const gap = Math.max(1, d - RADIUS);
+      lvEl.textContent = ''; tn.textContent = '不在站點';
+      html = gap < 1000 ? `${ico('i-lock')}<span class="n">${Math.ceil(gap)}</span><span class="u">公尺</span>` : `${ico('i-lock')}<span class="n">${(gap / 1000).toFixed(1)}</span><span class="u">公里</span>`;
+      label = `不在站點，還差 ${distText(gap)}`;
+      hint.innerHTML = `再走 <b>${distText(gap)}</b>，進到站點 100 公尺內就能發洩` + (nearest()[0] !== s && distTo(nearest()[0]) <= RADIUS ? '<br>你旁邊就有站，點下方卡片換過去' : '');
+    } else {
+      wheelEl.style.setProperty('--a', '0deg');
+      if (bossy) {
+        lvEl.textContent = '出擊'; tn.textContent = '一批 Lv.1 以上就算參戰';
+        html = `${ico('i-strike', 'ic big')}<span class="u">出擊</span>`;
+        label = '按下發洩怒氣，參戰魔王';
+      } else {
+        lvEl.textContent = 'Lv.0'; tn.textContent = '準備開始';
+        html = `${ico('f-0', 'face')}<span class="u">按下去</span>`;
+        label = '按下發洩怒氣';
+      }
+      const tip = tipLine();
+      hint.innerHTML = off ? '可以按，但暫停服務期間不計入需求<br>結果會顯示「未計入：暫停服務」' : '每下間隔 3 秒內算同一批，停手 3 秒送出<br>' + (tip || '按 2 下就是 <b>Lv.1</b>');
+    }
+  }
+  if (btn.dataset.html !== html) { btn.innerHTML = html; btn.dataset.html = html; }
+  btn.setAttribute('aria-label', label);
+}
+function renderResult(){
+  const el = $('result'), r = lastResult;
+  const show = !!r && !combo && r.shown && (r.mis ? Date.now() < r.until : (coolLeft() > 0 || r.entry.status === 'sending'));
+  el.hidden = !show; $('lvlLine').hidden = show;
+  if (!show) return;
+  if (r.mis) { el.innerHTML = '<div class="r-top"><span class="r-tn">只按 1 下</span></div><div class="r-ok no">當成誤觸，沒有送出，也不用冷卻（記在這支手機）</div>'; return; }
+  const e = r.entry, t = r.type, s = byId(r.sid) || cur(), unit = t === 'rent' ? '輛車' : '個位', ti = tierOf(e.l);
+  let line;
+  if (e.status === 'sending') line = ['wait', '<span class="mspin" aria-hidden="true"></span>', '傳送中，等伺服器確認…'];
+  else if (e.status === 'rejected') line = ['bad', '', `未計入：${esc(e.reason)}`];
+  else if (e.status === 'failed') line = ['local', ico('i-offline'), '連線失敗，只存在這支手機'];
+  else if (e.status === 'local') line = ['local', ico('i-offline'), (e.reason ? esc(e.reason) : '只存在這支手機，連線後不會補送') + (e.off ? '・暫停服務中' : e.counted ? `・當下 0 ${unit}` : `・當下有${t === 'rent' ? '車' : '位'}`)];
+  else if (e.suspended) line = ['no', ico('i-typhoon'), '未計入：暫停服務'];
+  else if (e.counted) line = ['ok', ico('i-check'), `計入需求・送出時這站 0 ${unit}`];
+  else line = ['no', '', `未計入：當下有 ${Number.isFinite(e.avail) ? e.avail + ' ' : ''}${unit}`];
+  const accepted = e.status === 'sent', pending = e.status === 'sending';
+  const gainSt = e.counted && !e.suspended && (accepted || (!backend && e.status === 'local'));
+  const tot = stationTotals(s, t), p = profile(), tt = titleOf(p.xp);
+  let bossB = '<b>–</b><small>沒有魔王</small>';
+  if (r.boss) {
+    const now = bossInfo(s, t), ppl = Math.max(now ? now.people : 0, r.boss.people + (r.boss.meIn ? 0 : 1));
+    bossB = !e.counted ? '<b>未參戰</b><small>要計入需求才算</small>' : r.boss.meIn ? `<b>已參戰</b><small>${Math.min(ppl, r.boss.target)} / ${r.boss.target}</small>` : `<b>+1 人</b><small>${Math.min(ppl, r.boss.target)} / ${r.boss.target}</small>`;
+  }
+  const xpB = accepted ? `<b>+${e.l}</b><small>${fmt(p.xp)} / ${tt.next ? fmt(tt.next) : '滿'}</small>` : pending ? `<b>+${e.l}</b><small>等伺服器確認</small>` : `<b>+0</b><small>${e.status === 'rejected' ? '伺服器沒接受' : '沒送到伺服器'}</small>`;
+  el.innerHTML = `<div class="r-top"><span class="r-lv">Lv.${e.l}</span><span class="r-tn">${ico('f-' + ti, '')}${TIERS[ti]}・${fmt(e.n)} 下</span>${r.rec ? `<span class="r-new">${r.rec}</span>` : ''}</div>
+    <div class="r-ok ${line[0]}">${line[1]}<span>${line[2]}</span></div>
+    <ul class="r-gain">
+      <li>本站怒氣${gainSt ? `<b>+${e.l}</b><small>總和 ${fmt(tot.lv)}</small>` : '<b>+0</b><small>沒有計入</small>'}</li>
+      <li>魔王參戰${bossB}</li>
+      <li>我的怒氣值${xpB}</li>
+    </ul>`;
+}
+function renderRail(){
+  const s = cur(), t = st.type, list = nearest().filter(x => x.id !== s.id).slice(0, 5);
+  const curZero = isOff(s) || avail(s, t) === 0, here = inRange();
+  const firstWith = curZero ? list.find(x => !isOff(x) && avail(x, t) > 0) : null;
+  $('rail').innerHTML = list.map((x, i) => {
+    const d = distTo(x), a = avail(x, t), off = isOff(x);
+    const tag = x === firstWith ? `<em>最近有${t === 'rent' ? '車' : '位'}</em>・` : i === 0 && !here && d <= RADIUS ? '<em>離你最近</em>・' : '';
+    return `<button class="card${x === firstWith ? ' hl' : ''}" data-id="${esc(x.id)}" aria-label="${esc(x.name)}，${distText(d)}，${t === 'rent' ? '可借' : '可還'} ${off ? '暫停服務' : a}，換到這站"><span class="cn">${esc(x.name)}</span><span class="cd">${tag}${distShort(d)}${d > RADIUS ? `・${Math.max(1, Math.ceil(d / 80))} 分` : ''}</span>${cntChip('', a, off)}</button>`;
+  }).join('');
+}
+function renderStats(){
+  const s = cur(), t = st.type, raw = st.unit === 'raw';
+  const list = mySends(s.id, t);
+  const mine = {sends:list.length, clicks:list.reduce((x, e) => x + e.n, 0), lv:list.reduce((x, e) => x + e.l, 0), max:list.reduce((x, e) => Math.max(x, e.l), 0)};
   if (backend) loadStats(s.id, t);
   // with the server, its totals already include this phone's accepted batches
-  const base = srv ? {sends:srv.total.sends, clicks:srv.total.clicks, lv:srv.total.lv, ppl:srv.total.people} : s.base[t];
-  const all = srv ? {...base} : {sends:base.sends + counted.length, clicks:base.clicks + counted.reduce((x, e) => x + e.n, 0), lv:base.lv + counted.reduce((x, e) => x + e.l, 0)};
+  const all = stationTotals(s, t);
   $('statTitle').textContent = `本站怒氣・${typeName(t)}`;
+  $('statStation').textContent = s.name;
+  $('uLevel').setAttribute('aria-pressed', !raw); $('uRaw').setAttribute('aria-pressed', raw);
   $('sMineL').textContent = raw ? '你的點擊總數' : '你的等級總和';
   $('sAllL').textContent = raw ? '全站點擊總數' : '全站等級總和';
   $('sMine').textContent = fmt(raw ? mine.clicks : mine.lv);
   $('sMineAlt').textContent = mine.sends ? `${mine.sends} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(mine.clicks / mine.sends))} 下` : `最高 Lv.${mine.max}`) : '還沒送出';
   $('sAll').textContent = fmt(raw ? all.clicks : all.lv);
   $('sAllAlt').textContent = all.sends ? `${fmt(all.sends)} 批 · ` + (raw ? `平均每批 ${fmt(Math.round(all.clicks / all.sends))} 下` : `平均 Lv.${(all.lv / all.sends).toFixed(1)}`) : (mode === 'live' && !backend ? '連不到伺服器，沒有其他人的資料' : '還沒有人送出');
-  $('sPpl').textContent = fmt(srv ? base.ppl : base.ppl + (counted.length ? 1 : 0));
+  $('sPpl').textContent = fmt(all.ppl);
   $('explain').textContent = raw
     ? '點擊次數：一次 Lv.7 要 128 下，十次 Lv.3 只要 80 下。原始點擊量反映的是「多用力」。'
     : '等級總和：每批之間要冷卻 30 秒，等級只當強度參考，需求量看受影響人次。';
-
-  renderFavs();
-  // demand log
+  const age = s.time ? Math.round((Date.now() - s.time) / 60000) : null;
+  $('dataAge').textContent = mode !== 'live' ? '範例資料，不是即時車位' : isOff(s) ? `${PREFIX_CITY[s.id.slice(0, 2)] || ''}的 YouBike 看起來暫停服務中（例如颱風），車數暫時沒有參考價值` : s.time ? `這站的車位資料時間：${hhmm(s.time)}（${age <= 0 ? '剛剛' : age + ' 分鐘前'}）${age > 5 ? '，資料偏舊，可能和官方 App 不同' : ''}` : '這站的資料沒有附時間';
+  $('dataAge').style.color = mode === 'live' && age > 5 ? 'var(--bad)' : '';
+  $('soundBtn').textContent = '音效：' + (st.sound ? '開' : '關'); $('soundBtn').setAttribute('aria-pressed', st.sound);
+}
+function renderDemand(){
   const d = $('demand'); d.innerHTML = '';
   if (backend) {
     $('demandNote').textContent = '所有站點最近結束的空站、滿站，以及期間有多少人在現場受影響。';
     if (events === null) loadEvents();
-    if (!events || !events.length) { d.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">還沒有紀錄。有人在空站送出怒氣、之後站點恢復，就會出現在這裡。</span></li>'; return; }
+    if (!events || !events.length) { d.innerHTML = '<li class="one"><span class="empty">還沒有紀錄。有人在空站送出怒氣、之後站點恢復，就會出現在這裡。</span></li>'; return; }
     events.forEach(r => {
       const li = document.createElement('li'), mins = (r.end - r.start) / 60000;
-      li.innerHTML = `<time>${hhmm(r.end)}</time><span><span class="nm"></span>・${typeName(r.type)}<br><span class="note">${r.type === 'rent' ? '空站' : '滿站'} ${mins.toFixed(0)} 分鐘後恢復${r.jump >= 5 ? '（疑似調度）' : ''}，<b>${r.people}</b> 人在現場受影響</span></span><span class="tag no">已恢復</span>`;
+      li.innerHTML = `<time>${hhmm(r.end)}</time><span class="l1"><span class="nm"></span>・${typeName(r.type)}<small>${r.type === 'rent' ? '空站' : '滿站'} ${mins.toFixed(0)} 分鐘後恢復${r.jump >= 5 ? '（疑似調度）' : ''}，${r.people} 人在現場受影響</small></span><span class="tag no">已恢復</span>`;
       li.querySelector('.nm').textContent = r.name;
       d.appendChild(li);
     });
     return;
   }
-  if (!st.demand.length) d.innerHTML = '<li style="grid-template-columns:1fr;border:0"><span class="empty">還沒有紀錄。討伐結束（時間到或站點恢復）就會出現。可以把模擬速度調到 60× 試試。</span></li>';
+  if (!st.demand.length) d.innerHTML = '<li class="one"><span class="empty">還沒有紀錄。討伐結束（時間到或站點恢復）就會出現。可以把模擬速度調到 60× 試試。</span></li>';
   st.demand.slice(0, 8).forEach(r => {
     const li = document.createElement('li');
     const how = r.outcome === 'restock' ? `${r.type === 'rent' ? '空站' : '滿站'} ${r.mins.toFixed(1)} 分鐘後恢復${r.jump >= 5 ? '（疑似調度）' : ''}` : '10 分鐘內';
-    li.innerHTML = `<time>${hhmm(r.at)}</time><span>${esc(r.name)}・${typeName(r.type)}<br><span class="note">${how}，<b>${r.ppl}</b> 人在現場受影響</span></span><span class="tag ${r.defeated ? 'in' : 'no'}">${r.defeated ? '討伐成功' : r.outcome === 'restock' ? '已恢復' : '未打倒'}</span>`;
+    li.innerHTML = `<time>${hhmm(r.at)}</time><span class="l1">${esc(r.name)}・${typeName(r.type)}<small>${how}，${r.ppl} 人在現場受影響</small></span><span class="tag ${r.defeated ? 'in' : 'no'}">${r.defeated ? '討伐成功' : r.outcome === 'restock' ? '已恢復' : '未打倒'}</span>`;
     d.appendChild(li);
   });
+}
+function renderAll(){
+  renderPlate(); renderBoss(); renderBossBar(); renderStage(); renderResult(); renderRail(); renderMap(); renderBadge();
+  renderStats(); renderNearList(); renderDemand(); renderXp(profile());
+  if (tab === 'rec') renderRec();
+  if (sheet.open) renderSheet();
 }
 
 // ---------- feedback ----------
@@ -1273,39 +2135,8 @@ function fanfare(){
     });
   } catch(e) {}
 }
-const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const cv = $('fx'), cx = cv.getContext('2d');
-let parts = [], raf = 0;
-function sizeCanvas(){ const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; cx.setTransform(d, 0, 0, d, 0, 0); }
-sizeCanvas();
-function spark(n, l){
-  if (reduce) return;
-  const r = cv.getBoundingClientRect(), css = getComputedStyle(document.documentElement);
-  const cols = ['--heat1','--heat2','--heat3','--heat4'].map(x => css.getPropertyValue(x).trim());
-  const top = Math.max(0, tierOf(l));
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * (3 + (l ?? 0) * .5);
-    parts.push({x:r.width/2 + Math.cos(a) * r.width * .28, y:r.height/2 + Math.sin(a) * r.height * .28, vx:Math.cos(a) * sp, vy:Math.sin(a) * sp - 1, life:1, c:cols[Math.floor(Math.random() * (top + 1))], s:2 + Math.random() * 3});
-  }
-  if (parts.length > 400) parts.splice(0, parts.length - 400);
-  if (!raf) raf = requestAnimationFrame(step);
-}
-function step(){
-  const r = cv.getBoundingClientRect(); cx.clearRect(0, 0, r.width, r.height);
-  parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .03; cx.globalAlpha = Math.max(0, p.life); cx.fillStyle = p.c; cx.beginPath(); cx.arc(p.x, p.y, p.s, 0, 7); cx.fill(); });
-  parts = parts.filter(p => p.life > 0); cx.globalAlpha = 1;
-  raf = parts.length ? requestAnimationFrame(step) : 0;
-}
-function levelUp(l){
-  const t = tierOf(l), b = $('burst');
-  b.textContent = `升級！Lv.${l} ${TIERS[t].name}`;
-  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
-  spark(30 + l * 4, l); fanfare();
-  if (!reduce) { const sg = $('stage'); sg.classList.remove('shake'); void sg.offsetWidth; sg.classList.add('shake'); }
-}
 
 // one press = one tap: no hold-to-repeat, and held keys don't auto-repeat
-const btn = $('angerBtn');
 const stop = () => btn.classList.remove('down');
 btn.addEventListener('pointerdown', e => {
   if (e.button !== 0) return;
@@ -1328,7 +2159,7 @@ function resetIdle(){ box.innerHTML = '<button class="ghost" id="resetBtn">清�
 function resetAsk(){
   box.innerHTML = '<button class="ghost" id="rYes" style="border-color:var(--bad);color:var(--bad)">確定清除</button> <button class="ghost" id="rNo">取消</button>';
   $('rYes').addEventListener('click', () => {
-    clearTimeout(finTimer); combo = null;
+    clearTimeout(finTimer); combo = null; lastResult = null; fx.setIdle(-1); fx.setFuse(0);
     const keep = {you:st.you, station:st.station, type:st.type, unit:st.unit, sound:st.sound};
     st = Object.assign(fresh(), keep); save(); resetIdle(); renderAll(); say('已清除你的紀錄');
   });
@@ -1337,9 +2168,11 @@ function resetAsk(){
 $('resetBtn').addEventListener('click', resetAsk);
 
 // ---------- boot ----------
-buildOptions(); renderAll(); probeTiles();
+setTab(location.hash.slice(1) || 'vent');
+renderAll(); probeTiles();
 $('useGps').hidden = !('geolocation' in navigator);
 startGps();
+if (coolLeft()) startCool();
 // loading screen: stays up until the first load settles, offers the demo after 8 s
 const hideBoot = () => { const b = $('boot'); if (b) b.remove(); };
 setTimeout(() => { if ($('boot')) $('bootNote').textContent = '連線比較慢，再等一下…'; }, 4000);
