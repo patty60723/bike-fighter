@@ -5,6 +5,7 @@
 // GET  /stats           a station's anger totals and its current empty-station boss
 // GET  /events          recent finished empty/full spells (the demand log)
 // GET  /ntpc?page=N     raw New Taipei data (kept for pages from before /stations)
+// GET  /usage          today's estimated D1 usage (what the cron's self-throttling sees)
 // cron, every minute    open/close empty-station spells from the live counts
 
 const RADIUS = 100;              // m: you must be this close to the station
@@ -200,7 +201,13 @@ async function getStats(url, env, cors) {
 
 async function queryStats(env, sid, type) {
   const now = Date.now();
-  const since = (await env.DB.prepare('SELECT since FROM empty_open WHERE sid = ? AND type = ?').bind(sid, type).first())?.since ?? null;
+  // open spells live in the snapshot row (see sweep); one row read
+  // [since, name, recoveredAt?]; a spell whose station has bikes/docks again is no longer shown
+  const entry = /^[A-Za-z0-9_-]{1,40}$/.test(sid)
+    ? (await env.DB.prepare('SELECT json_extract(open, ?) AS spell FROM snapshot WHERE id = 1').bind(`$."${sid}:${type}"`).first())?.spell ?? null
+    : null;
+  const e = entry ? JSON.parse(entry) : null;
+  const since = e && e[2] == null ? e[0] : null;
   // the boss only counts people from this spell, and at most the last 10 minutes of it
   const from = Math.max(now - BOSS_WINDOW, since ?? now);
   const [tot, ppl, boss, hist] = await env.DB.batch([
@@ -208,7 +215,12 @@ async function queryStats(env, sid, type) {
     // people = devices, counted at most once per hour per station
     env.DB.prepare("SELECT COUNT(DISTINCT device || ':' || (at / 3600000)) AS people FROM angers WHERE sid = ? AND type = ? AND counted = 1").bind(sid, type),
     env.DB.prepare('SELECT device, MAX(level) AS lv FROM angers WHERE sid = ? AND type = ? AND counted = 1 AND at >= ? GROUP BY device ORDER BY lv DESC').bind(sid, type, from),
-    env.DB.prepare('SELECT start, end, people, jump FROM empty_events WHERE sid = ? AND type = ? ORDER BY end DESC LIMIT 5').bind(sid, type),
+    // spells since v1.4, then the ones logged in empty_events before it; each side reads at most 5 rows
+    env.DB.prepare(`SELECT start, end, people, jump FROM (
+        SELECT * FROM (SELECT start, end, people, jump FROM spells WHERE sid = ?1 AND type = ?2 ORDER BY end DESC LIMIT 5)
+        UNION ALL
+        SELECT * FROM (SELECT start, end, people, jump FROM empty_events WHERE sid = ?1 AND type = ?2 ORDER BY end DESC LIMIT 5))
+      ORDER BY end DESC LIMIT 5`).bind(sid, type),
   ]);
   const t = tot.results[0];
   let spell = null;
@@ -229,7 +241,12 @@ async function getEvents(url, env, cors) {
   const hit = eventsMemo.get(limit);
   let events = hit && Date.now() - hit.at < EVENTS_TTL ? hit.events : null;
   if (!events) {
-    events = (await env.DB.prepare('SELECT sid, type, name, start, end, people, jump FROM empty_events WHERE people > 0 ORDER BY end DESC LIMIT ?').bind(limit).all()).results;
+    // both sides walk only their partial index of affected spells
+    events = (await env.DB.prepare(`SELECT sid, type, name, start, end, people, jump FROM (
+        SELECT * FROM (SELECT sid, type, name, start, end, people, jump FROM spells WHERE people > 0 ORDER BY end DESC LIMIT ?1)
+        UNION ALL
+        SELECT * FROM (SELECT sid, type, name, start, end, people, jump FROM empty_events WHERE people > 0 ORDER BY end DESC LIMIT ?1))
+      ORDER BY end DESC LIMIT ?1`).bind(limit).all()).results;
     eventsMemo.set(limit, { at: Date.now(), events });
   }
   return json({ ok: true, events }, 200, cors, { 'Cache-Control': 'public, max-age=30' });
@@ -257,46 +274,138 @@ function zeroKeys(stations) {
   return keys;
 }
 const SPELL_MIN_KEEP = 5 * 60_000; // a spell nobody complained about is only logged if it lasted this long
+// A spell ends when the station has had bikes (docks) for this long; a 0 -> 1 -> 0 flap inside it
+// stays one spell. The end time logged is still the minute the bikes came back.
+const CLOSE_DEBOUNCE = 3 * 60_000;
+let seeded = null; // open spells taken from empty_open, kept in case the first write fails (D1 over its limit)
+
+// ---------- D1 budget ----------
+// Free plan (per UTC day): 5,000,000 rows read, 100,000 rows written. Override with vars if the plan changes.
+// The cron keeps a running estimate of today's usage in the snapshot row (no extra write) and
+// sweeps less often when it gets ahead of BUDGET_SHARE of the daily limit.
+const DAY = 86_400_000;
+const BUDGET_SHARE = 0.3;
+const ANGER_WRITES = 4;          // one anger = the row + 2 indexes + the AUTOINCREMENT counter
+const SWEEP_MIN_GAP = 30_000;    // a second cron firing (duplicate, or another deployment on this database) within this is skipped
+function limits(env) {
+  return { reads: Number(env.D1_DAILY_READS) || 5_000_000, writes: Number(env.D1_DAILY_WRITES) || 100_000 };
+}
+function newUsage(day, angerId) { return { day, r: 0, w: 0, a0: angerId ?? 0, sweeps: 0, every: 1 }; }
+// today's usage as a share of the daily limit; anger writes are counted from the angers id range
+function usageShare(u, angerId, env) {
+  const L = limits(env), apiW = Math.max(0, (angerId ?? 0) - u.a0) * ANGER_WRITES;
+  return { reads: u.r, writes: u.w + apiW, share: Math.max(u.r / L.reads, (u.w + apiW) / L.writes) };
+}
+// minutes between sweeps (0 = paused for the rest of the UTC day)
+function sweepEvery(share, now) {
+  const pace = BUDGET_SHARE * Math.max((now % DAY) / DAY, 2 / 24); // where a 30%-a-day budget should be by now
+  if (share >= 0.85) return 0;     // leave the rest for /anger and /stats; /stations falls back to the cities
+  if (share >= 0.6 || share > pace * 2) return 10;
+  if (share >= BUDGET_SHARE || share > pace) return 2;
+  return 1;
+}
+let carry = { r: 0, w: 0 }; // measured minus estimated usage of the last sweep in this isolate
 
 async function sweep(env) {
+  const now = Date.now(), day = Math.floor(now / DAY);
+  // one row: when the last sweep ran, the open spells, today's usage, and the newest anger id
+  const prevRes = await env.DB.prepare('SELECT updated, open, usage, (SELECT MAX(id) FROM angers) AS aid FROM snapshot WHERE id = 1').all();
+  const prev = prevRes.results[0] ?? null, aid = prev?.aid ?? 0;
+  let u = prev?.usage ? JSON.parse(prev.usage) : null;
+  if (!u || u.day !== day) { u = newUsage(day, aid); carry = { r: 0, w: 0 }; }
+
+  // (a snapshot time in the future can't be a recent sweep; don't let it block the cron)
+  const gap = prev && prev.updated <= now ? now - prev.updated : Infinity;
+  if (gap < SWEEP_MIN_GAP) return { skipped: 'too_soon', gap };
+  const every = sweepEvery(usageShare(u, aid, env).share, now);
+  if (every === 0) return { skipped: 'over_budget', every };
+  if (gap < every * 60_000 - 20_000) return { skipped: 'throttled', every };
+
   const data = await loadStations(env, { fresh: true });
   if (!data.stations.length) return { opened: 0, closed: 0 };
-  const now = Date.now(), byId = new Map(data.stations.map(s => [s.id, s]));
+  const byId = new Map(data.stations.map(s => [s.id, s]));
 
-  // Compare with last minute's snapshot (one row) instead of reading every open spell.
-  // Without a recent snapshot (first run, or the cron stalled), fall back to the open-spell table once.
-  const prevRow = await env.DB.prepare('SELECT body, updated FROM snapshot WHERE id = 1').first();
-  let before;
-  if (prevRow && now - prevRow.updated < 5 * 60_000) before = zeroKeys(JSON.parse(prevRow.body).stations);
-  else before = new Set((await env.DB.prepare('SELECT sid, type FROM empty_open').all()).results.map(o => `${o.sid}:${o.type}`));
+  // The open spells: "sid:type" -> [since, name, recoveredAt?, jump?]. The last committed sweep's copy is
+  // always the right thing to compare with, however old it is (if D1 refused our writes, nothing changed).
+  // Right after migration 0005 they come from empty_open, once per isolate.
+  let open, seedReads = 0;
+  if (prev?.open) open = JSON.parse(prev.open);
+  else if (seeded) open = structuredClone(seeded);
+  else {
+    try {
+      const r = await env.DB.prepare('SELECT sid, type, name, since FROM empty_open').all();
+      open = Object.fromEntries(r.results.map(o => [`${o.sid}:${o.type}`, [o.since, o.name]]));
+      seedReads = r.meta?.rows_read ?? r.results.length;
+    } catch (e) { console.error('empty_open seed failed', e.message); open = {}; }
+    seeded = structuredClone(open);
+  }
   const after = zeroKeys(data.stations);
 
-  const stmts = [env.DB.prepare('INSERT OR REPLACE INTO snapshot (id, body, updated) VALUES (1, ?, ?)').bind(JSON.stringify(data), data.updated)];
-  let opened = 0, closed = 0;
-  for (const key of after) {
-    if (before.has(key)) continue;
-    const [sid, type] = key.split(':');
-    stmts.push(env.DB.prepare('INSERT OR IGNORE INTO empty_open (sid, type, name, since) VALUES (?, ?, ?, ?)').bind(sid, type, byId.get(sid).name, now));
-    opened++;
-  }
-  for (const key of before) {
-    if (after.has(key)) continue;
+  let opened = 0;
+  const closes = [];
+  for (const key of Object.keys(open)) {
+    const o = open[key];
+    if (after.has(key)) { if (o[2] != null) open[key] = [o[0], o[1]]; continue; } // back to 0 within the debounce: same spell
     const [sid, type] = key.split(':');
     // leave a city's spells alone when that city didn't answer this minute
     if (!data.prefixes.includes(sid.slice(0, 2))) continue;
-    const jump = byId.get(sid)?.[type] ?? 0;
-    // log the spell if someone was affected or it lasted a while; short blips nobody noticed are dropped
-    stmts.push(env.DB.prepare(`INSERT INTO empty_events (sid, type, name, start, end, people, jump)
-      SELECT sid, type, name, since, ?1, people, ?2 FROM (
-        SELECT o.sid, o.type, o.name, o.since,
-          (SELECT COUNT(DISTINCT a.device) FROM angers a WHERE a.sid = o.sid AND a.type = o.type AND a.counted = 1 AND a.at >= o.since) AS people
-        FROM empty_open o WHERE o.sid = ?3 AND o.type = ?4)
-      WHERE people > 0 OR ?1 - since >= ?5`).bind(now, jump, sid, type, SPELL_MIN_KEEP));
-    stmts.push(env.DB.prepare('DELETE FROM empty_open WHERE sid = ? AND type = ?').bind(sid, type));
-    closed++;
+    if (o[2] == null) { open[key] = [o[0], o[1], now, byId.get(sid)?.[type] ?? 0]; continue; } // bikes are back: wait and see
+    if (now - o[2] < CLOSE_DEBOUNCE) continue;
+    closes.push([sid, type, o[1], o[0], o[3] ?? 0, o[2]]); // ends when the bikes came back
+    delete open[key];
   }
-  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
-  return { opened, closed };
+  for (const key of after) {
+    if (open[key]) continue;
+    open[key] = [now, byId.get(key.split(':')[0]).name];
+    opened++;
+  }
+
+  // Usage written into this sweep's row: what's known so far, plus an upper bound for this batch
+  // (corrected with the measured numbers on the next sweep in this isolate).
+  const estW = 1 + closes.length * 2, estR = 2 + closes.length * 2;
+  u.r += (prevRes.meta?.rows_read ?? 1) + seedReads + carry.r + estR;
+  u.w += carry.w + estW;
+  u.sweeps++; u.every = every;
+  if (gap < 60 * 60_000) u.r += Math.max(0, Math.round(gap / 60_000) - 1) * 2; // skipped minutes each read one row (+ the angers max id)
+
+  // One transaction. The snapshot only moves forward if nobody else swept since we read it, and the
+  // spells are only logged if our snapshot write won, so a duplicate cron run can't log a spell twice.
+  const stmts = [env.DB.prepare(`INSERT INTO snapshot (id, body, updated, open, usage) VALUES (1, ?1, ?2, ?3, ?4)
+      ON CONFLICT (id) DO UPDATE SET body = excluded.body, updated = excluded.updated, open = excluded.open, usage = excluded.usage
+      WHERE snapshot.updated IS ?5`)
+    .bind(JSON.stringify(data), data.updated, JSON.stringify(open), JSON.stringify(u), prev ? prev.updated : null)];
+  if (closes.length) {
+    // log the spells someone was affected by or that lasted a while; short blips nobody noticed are dropped
+    // people: devices that sent counted anger during the spell (counted needs 0 bikes, so none after `end`)
+    stmts.push(env.DB.prepare(`INSERT OR IGNORE INTO spells (sid, type, end, start, name, people, jump)
+      SELECT sid, type, end, since, name, people, jump FROM (
+        SELECT c.sid, c.type, c.name, c.since, c.jump, c.end,
+          (SELECT COUNT(DISTINCT a.device) FROM angers a WHERE a.sid = c.sid AND a.type = c.type AND a.counted = 1 AND a.at >= c.since) AS people
+        FROM (SELECT value ->> 0 AS sid, value ->> 1 AS type, value ->> 2 AS name, value ->> 3 AS since, value ->> 4 AS jump, value ->> 5 AS end
+              FROM json_each(?1)) c)
+      WHERE (people > 0 OR end - since >= ?2) AND (SELECT updated FROM snapshot WHERE id = 1) = ?3`)
+      .bind(JSON.stringify(closes), SPELL_MIN_KEEP, data.updated));
+  }
+  const res = await env.DB.batch(stmts);
+  const measR = res.reduce((n, r) => n + (r.meta?.rows_read ?? 0), 0), measW = res.reduce((n, r) => n + (r.meta?.rows_written ?? 0), 0);
+  carry = { r: measR - estR, w: measW - estW };
+  if (!res[0].meta?.changes) return { skipped: 'raced' }; // another sweep got there first
+  return { opened, closed: closes.length, logged: res[1]?.meta?.changes ?? 0, rowsRead: measR, rowsWritten: measW, every, today: usageShare(u, aid, env) };
+}
+
+let usageMemo = null;
+async function getUsage(env, cors) {
+  if (!usageMemo || Date.now() - usageMemo.at > 60_000) {
+    const row = await env.DB.prepare('SELECT usage, (SELECT MAX(id) FROM angers) AS aid FROM snapshot WHERE id = 1').first();
+    const u = row?.usage ? JSON.parse(row.usage) : null;
+    const L = limits(env);
+    usageMemo = { at: Date.now(), body: u && {
+      day: new Date(u.day * DAY).toISOString().slice(0, 10), ...usageShare(u, row.aid, env),
+      limits: L, budgetShare: BUDGET_SHARE, sweeps: u.sweeps, sweepEveryMin: u.every,
+      note: 'cron measured + anger writes from the id range; /stats and /events reads are not included',
+    } };
+  }
+  return json({ ok: true, usage: usageMemo.body }, 200, cors, { 'Cache-Control': 'no-store' });
 }
 
 export default {
@@ -320,6 +429,7 @@ export default {
         const upstream = await fetch(NTPC_URL(page), { cf: { cacheTtl: 60, cacheEverything: true } });
         return new Response(upstream.body, { status: upstream.status, headers: { ...cors, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' } });
       }
+      if (request.method === 'GET' && url.pathname === '/usage') return await getUsage(env, cors);
       if (request.method === 'GET' && url.pathname === '/health') return json({ ok: true }, 200, cors);
       return fail(404, 'not_found', '沒有這個路徑', cors);
     } catch (e) {
@@ -328,6 +438,6 @@ export default {
     }
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(sweep(env).then(r => console.log('sweep', JSON.stringify(r))));
+    ctx.waitUntil(sweep(env).then(r => console.log('sweep', JSON.stringify(r)), e => console.error('sweep failed', e.message)));
   },
 };
