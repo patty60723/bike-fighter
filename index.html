@@ -307,7 +307,30 @@ main{grid-area:main;overflow-y:auto;overflow-x:hidden;display:flex;flex-directio
   .near-grid{grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);align-items:start}
   .map{height:calc(100dvh - 210px);min-height:420px}
   .near-list{max-height:calc(100dvh - 110px);overflow-y:auto}
+  .sh-grab,.lg-sheet{display:none}
 }
+/* phones: the map fills the tab and the list is a sheet over it (peek / half / full) */
+@media (max-width:899.98px){
+  #tab-near:not([hidden]){flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding-bottom:0}
+  .near-grid{flex:1;min-height:0;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden}
+  .near-map{flex:1;min-height:0;display:flex;flex-direction:column}
+  .near-map .map{flex:1;height:auto;min-height:160px;border-radius:14px 14px 0 0}
+  .lg-map{display:none}
+  .map-badge{top:10px;bottom:auto;max-width:calc(100% - 70px)}
+  .near-list{position:absolute;left:0;right:0;bottom:0;z-index:8;height:var(--sh,45%);display:flex;flex-direction:column;
+    padding:0 12px;border-radius:16px 16px 0 0;border-bottom:0;box-shadow:0 -6px 20px -8px rgba(0,0,0,.3);transition:height .28s cubic-bezier(.2,.8,.2,1)}
+  .near-list.dragging{transition:none}
+  .near-list .slist{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+  .near-list[data-snap="peek"] .slist{overflow:hidden}
+  .near-list[data-snap="peek"] .slist:has(.cur) > li:not(:has(.cur)){display:none}
+  .near-list .stabs{flex:none}
+  .near-list .lg-sheet{flex:none;margin:6px 0 10px}
+  .near-list:not([data-snap="full"]) .lg-sheet{display:none}
+  .sh-grab{flex:none;display:grid;place-items:center;width:100%;height:24px;border:0;background:none;padding:0;cursor:grab;touch-action:none}
+  .sh-grab i{width:40px;height:5px;border-radius:3px;background:var(--line)}
+  .sh-grab:focus-visible i{background:var(--ink)}
+}
+@media (prefers-reduced-motion:reduce){.near-list{transition:none}}
 
 /* ---------- 戰績 ---------- */
 .rec-grid,.info-grid{display:grid;gap:12px;align-content:start}
@@ -506,7 +529,7 @@ dialog.sheet::backdrop{background:rgb(0 0 0 / .45)}
 
 <div class="shell">
   <header class="topbar">
-    <div class="brand"><h1>單車怒氣站</h1><span class="chip">v2.0</span></div>
+    <div class="brand"><h1>單車怒氣站</h1><span class="chip">v2.1</span></div>
     <span class="chip" id="modeChip">示範資料</span>
   </header>
 
@@ -555,9 +578,9 @@ dialog.sheet::backdrop{background:rgb(0 0 0 / .45)}
 
     <!-- ===== 附近 ===== -->
     <section class="tab" id="tab-near" aria-label="附近站點" hidden>
-      <div class="near-grid">
-        <div>
-          <div class="ntop">
+      <div class="near-grid" id="nearGrid">
+        <div class="near-map">
+          <div class="ntop" id="ntop">
             <div class="search">
               <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
               <input type="search" id="q" placeholder="搜尋站名或行政區，例如：市政府、板橋" autocomplete="off" enterkeyhint="search"
@@ -582,7 +605,7 @@ dialog.sheet::backdrop{background:rgb(0 0 0 / .45)}
             </div>
             <div class="map-badge" id="mapBadge">載入中…</div>
           </div>
-          <div class="legend">
+          <div class="legend lg-map">
             <span><i style="background:var(--bad)"></i>0</span>
             <span><i style="background:var(--heat1)"></i>1–3</span>
             <span><i style="background:var(--ok)"></i>4 以上</span>
@@ -591,13 +614,21 @@ dialog.sheet::backdrop{background:rgb(0 0 0 / .45)}
             <span>虛線圈：選中站點的 100 公尺範圍</span>
           </div>
         </div>
-        <div class="panel near-list">
+        <div class="panel near-list" id="nearSheet" data-snap="half">
+          <button class="sh-grab" id="shGrab" aria-label="調整列表高度" aria-controls="nearList"><i aria-hidden="true"></i></button>
           <div class="stabs" role="group" aria-label="列表">
             <button data-list="near" aria-pressed="true">附近</button>
             <button data-list="fav" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-star-fill"/></svg>常用 <span id="favCount">0</span></button>
             <span class="note">常用最多 10 站，只存在這支手機</span>
           </div>
           <ul class="slist" id="nearList"></ul>
+          <div class="legend lg-sheet">
+            <span><i style="background:var(--bad)"></i>0</span>
+            <span><i style="background:var(--heat1)"></i>1–3</span>
+            <span><i style="background:var(--ok)"></i>4 以上</span>
+            <span><i style="background:var(--lock)"></i>暫停服務</span>
+            <span><i style="background:var(--you)"></i>你（虛線是模擬位置，可拖曳）</span>
+          </div>
         </div>
       </div>
     </section>
@@ -836,7 +867,7 @@ function setTab(name){
   $('main').scrollTop = 0;
   try { history.replaceState(null, '', name === 'vent' ? location.pathname + location.search : '#' + name); } catch(e) {}
   // the map has no size while its tab is hidden, so draw it again once it is shown
-  if (name === 'near') renderMap();
+  if (name === 'near') setSnap(snap);
   if (name === 'rec') renderRec();
 }
 document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -848,7 +879,10 @@ const TILE = 256, DOT_Z = 14, mapEl = $('map');
 const view = {lat:st.you.lat, lng:st.you.lng, z:15};
 function proj(lat, lng, z){ const s = TILE * 2 ** z, r = lat * Math.PI / 180; return {x:(lng + 180) / 360 * s, y:(1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * s}; }
 function unproj(x, y, z){ const s = TILE * 2 ** z, n = Math.PI - 2 * Math.PI * y / s; return {lat:180 / Math.PI * Math.atan(Math.sinh(n)), lng:x / s * 360 - 180}; }
-function origin(){ const c = proj(view.lat, view.lng, view.z); return {x:c.x - mapEl.clientWidth / 2, y:c.y - mapEl.clientHeight / 2}; }
+// on phones the list sheet covers the bottom of the map, so "the centre" is the middle of the part still showing
+let mapPad = 0;
+const mapCY = () => Math.max(40, mapEl.clientHeight - mapPad) / 2;
+function origin(){ const c = proj(view.lat, view.lng, view.z); return {x:c.x - mapEl.clientWidth / 2, y:c.y - mapCY()}; }
 const toScreen = (lat, lng, o) => { const p = proj(lat, lng, view.z); return {x:p.x - o.x, y:p.y - o.y}; };
 const tileImgs = new Map(), markerEls = new Map();
 
@@ -933,10 +967,10 @@ function dotAt(pt){
 let follow = true;
 function zoom(d, sx, sy){
   const z2 = Math.max(12, Math.min(18, view.z + d)); if (z2 === view.z) return;
-  const W = mapEl.clientWidth, H = mapEl.clientHeight;
-  sx ??= W / 2; sy ??= H / 2;
+  const W = mapEl.clientWidth;
+  sx ??= W / 2; sy ??= mapCY();
   const o = origin(), pt = unproj(o.x + sx, o.y + sy, view.z), p2 = proj(pt.lat, pt.lng, z2);
-  const c = unproj(p2.x - sx + W / 2, p2.y - sy + H / 2, z2);
+  const c = unproj(p2.x - sx + W / 2, p2.y - sy + mapCY(), z2);
   view.z = z2; view.lat = c.lat; view.lng = c.lng;
   renderMap();
 }
@@ -1021,7 +1055,7 @@ $('toMe').addEventListener('click', () => {
   follow = true; view.lat = st.you.lat; view.lng = st.you.lng;
   if (gpsOn) { manualFrom = null; followNearest(true); save(); renderAll(); } else renderMap();
 });
-addEventListener('resize', () => renderMap());
+addEventListener('resize', () => { if (tab === 'near') setSnap(snap); else renderMap(); });
 
 // ---------- station picking ----------
 // a station the user picks stays chosen until they walk 200 m away or press the locate button
@@ -1136,7 +1170,64 @@ function renderNearList(){
   } else nearList(25).forEach(x => ul.appendChild(stationRow(x)));
 }
 document.querySelectorAll('[data-list]').forEach(b => b.addEventListener('click', () => { listMode = b.dataset.list; renderNearList(); }));
-$('nearList').addEventListener('click', e => { const b = e.target.closest('.srow'); if (b && b.dataset.id) pickStation(b.dataset.id, true); });
+$('nearList').addEventListener('click', e => {
+  const b = e.target.closest('.srow');
+  if (b && b.dataset.id && pickStation(b.dataset.id, true) && phone.matches) setSnap('peek');
+});
+
+// phones: the list is a sheet over the map with three heights; drag or tap the handle
+const phone = matchMedia('(max-width:899.98px)'), nSheet = $('nearSheet'), SNAPS = ['peek', 'half', 'full'];
+let snap = 'half';
+function snapHeights(){
+  const room = $('nearGrid').clientHeight - $('ntop').offsetHeight - 8;
+  return {peek:Math.min(112, room), half:Math.max(112, Math.round(room * .48)), full:Math.max(112, room)};
+}
+function setSnap(name){
+  snap = name;
+  nSheet.dataset.snap = name;
+  if (!phone.matches) { nSheet.style.removeProperty('--sh'); mapPad = 0; if (tab === 'near') renderMap(); return; }
+  const h = snapHeights();
+  nSheet.style.setProperty('--sh', h[name] + 'px');
+  $('shGrab').setAttribute('aria-label', {peek:'展開列表', half:'列表全開', full:'收起列表'}[name]);
+  // a full sheet hides the map, so keep the map laid out as if it were half open
+  mapPad = name === 'full' ? h.half : h[name];
+  if (tab === 'near') renderMap();
+}
+{
+  let g = null;
+  $('shGrab').addEventListener('pointerdown', e => {
+    if (!phone.matches) return;
+    g = {y:e.clientY, t:performance.now(), h:nSheet.offsetHeight, moved:false};
+    $('shGrab').setPointerCapture(e.pointerId);
+  });
+  $('shGrab').addEventListener('pointermove', e => {
+    if (!g) return;
+    const dy = e.clientY - g.y;
+    if (!g.moved && Math.abs(dy) < 6) return;
+    g.moved = true; nSheet.classList.add('dragging');
+    const h = snapHeights();
+    nSheet.style.setProperty('--sh', Math.max(h.peek, Math.min(h.full, g.h - dy)) + 'px');
+  });
+  const end = e => {
+    if (!g) return;
+    const was = g; g = null; nSheet.classList.remove('dragging');
+    if (!was.moved) return; // a tap: the click handler cycles
+    const h = snapHeights(), cur = nSheet.offsetHeight, v = (e.clientY - was.y) / Math.max(1, performance.now() - was.t);
+    let k = SNAPS.reduce((a, b) => Math.abs(h[b] - cur) < Math.abs(h[a] - cur) ? b : a);
+    // a quick flick goes one step in its direction even if it did not travel far
+    if (Math.abs(v) > .5) { const i = SNAPS.indexOf(snap) + (v < 0 ? 1 : -1); k = SNAPS[Math.max(0, Math.min(2, i))]; }
+    setSnap(k);
+    skipClick = true;
+  };
+  let skipClick = false;
+  $('shGrab').addEventListener('pointerup', end);
+  $('shGrab').addEventListener('pointercancel', end);
+  $('shGrab').addEventListener('click', () => {
+    if (skipClick) { skipClick = false; return; }
+    setSnap(SNAPS[(SNAPS.indexOf(snap) + 1) % 3]);
+  });
+}
+phone.addEventListener('change', () => setSnap(snap));
 
 // the station picker: a bottom sheet with search, favourites first, then the 25 nearest
 const sheet = $('sheet'), sq = $('sq');
@@ -1357,6 +1448,8 @@ function renderBadge(){
 
 // ---------- FX engine: canvas particles + Web Animations ----------
 // Multi-step keyframes put their easing on each keyframe: an `easing` option applies to the whole timeline.
+// if the phone cannot keep up (frames slower than ~30 fps for a while), drop the idle particles and thin out bursts
+let lowFx = false, slowMs = 0;
 function makeFX(wheel, host){
   const cv = document.createElement('canvas'); cv.className = 'fxc'; cv.setAttribute('aria-hidden', 'true'); wheel.appendChild(cv);
   const ctx = cv.getContext('2d'), core = wheel.querySelector('.core');
@@ -1366,11 +1459,13 @@ function makeFX(wheel, host){
   const geom = () => { const R = wheel.clientWidth / 2; return {R, rc:R * .74, W:cv.clientWidth / 2}; };
   const kick = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(loop); } };
   const add = p => { if (P.length > 500) return; P.push(Object.assign({t:0, life:600, x:0, y:0, vx:0, vy:0, g:0, drag:1, size:3, kind:'dot', color:cssVar('--heat2')}, p)); kick(); };
-  function burst(n, o){ const {rc} = geom(); for (let i = 0; i < n; i++) { const a = o.a0 != null ? o.a0 + rand(-o.spread, o.spread) : rand(0, Math.PI * 2), s = rand(o.s0, o.s1), r = o.r != null ? o.r : rc;
+  function burst(n, o){ const {rc} = geom(); if (lowFx) n = Math.ceil(n / 3); for (let i = 0; i < n; i++) { const a = o.a0 != null ? o.a0 + rand(-o.spread, o.spread) : rand(0, Math.PI * 2), s = rand(o.s0, o.s1), r = o.r != null ? o.r : rc;
     add({x:Math.cos(a) * r, y:Math.sin(a) * r, vx:Math.cos(a) * s, vy:Math.sin(a) * s, g:o.g || 0, drag:o.drag || 1, life:rand(o.l0, o.l1), size:rand(o.z0, o.z1), kind:o.kind || 'dot', color:cssVar(pickOne(o.colors)), rot:rand(0, 6), vr:rand(-.02, .02)}); } }
   function ring(o){ const {R, rc} = geom(); add(Object.assign({kind:'ring', r0:rc, r1:R * 1.4, lw:4, life:450, color:cssVar('--heat1')}, o)); }
   function loop(now){
-    const dt = Math.min(48, now - last); last = now; raf = 0;
+    const raw = now - last, dt = Math.min(48, raw); last = now; raf = 0;
+    // ignore one-off long gaps (tab in background, GC pauses)
+    if (!lowFx && raw < 200) { slowMs = raw > 34 ? slowMs + raw : Math.max(0, slowMs - raw); if (slowMs > 1500) lowFx = true; }
     const w = cv.clientWidth, h = cv.clientHeight, d = Math.min(2, devicePixelRatio || 1);
     if (!w) { P = []; return; }
     if (cv.width !== Math.round(w * d) || cv.height !== Math.round(h * d)) { cv.width = Math.round(w * d); cv.height = Math.round(h * d); }
@@ -1379,8 +1474,8 @@ function makeFX(wheel, host){
     // idle emitters while a combo runs
     if (idle >= 1 && !rm) {
       spin += dt * [0, .0025, .005, .009][idle];
-      if (idle === 1 && Math.random() < dt * .02) add({kind:'smoke', x:rand(-R * .4, R * .4), y:-R * .8, vx:rand(-.01, .01), vy:-.045, life:1300, size:R * .1, color:cssVar('--muted')});
-      if (idle >= 2 && Math.random() < dt * (idle === 3 ? .07 : .03)) { const a = rand(0, Math.PI * 2); add({kind:'spark', x:Math.cos(a) * R, y:Math.sin(a) * R, vx:Math.cos(a) * .14, vy:Math.sin(a) * .14 - .03, g:.0004, life:480, size:2, color:cssVar(idle === 3 ? pickOne(['--heat4', '--heat1']) : pickOne(['--heat1', '--heat2']))}); }
+      if (!lowFx && idle === 1 && Math.random() < dt * .02) add({kind:'smoke', x:rand(-R * .4, R * .4), y:-R * .8, vx:rand(-.01, .01), vy:-.045, life:1300, size:R * .1, color:cssVar('--muted')});
+      if (!lowFx && idle >= 2 && Math.random() < dt * (idle === 3 ? .07 : .03)) { const a = rand(0, Math.PI * 2); add({kind:'spark', x:Math.cos(a) * R, y:Math.sin(a) * R, vx:Math.cos(a) * .14, vy:Math.sin(a) * .14 - .03, g:.0004, life:480, size:2, color:cssVar(idle === 3 ? pickOne(['--heat4', '--heat1']) : pickOne(['--heat1', '--heat2']))}); }
       // speed lines orbiting the tire
       const n = idle + 1, col = cssVar(TIER_C[idle]);
       ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.lineWidth = 3;
